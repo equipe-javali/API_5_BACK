@@ -19,3 +19,8 @@ class Usuario(AbstractUser):
         related_name="usuario_permissions",
         blank=True
     )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['email'], name='unique_email')
+        ]
