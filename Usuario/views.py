@@ -4,17 +4,39 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework import generics, status
 from django.contrib.auth import authenticate
 from django.db import IntegrityError
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from .models import Usuario
 from .serializers import UsuarioSerializer
 
 class UsuarioCreateView(generics.CreateAPIView):
     queryset = Usuario.objects.all()
     serializer_class = UsuarioSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [AllowAny] # Não precisa estar autenticado
+    
+    def post(self, request, *args, **kwargs):
+        if request.method != "POST":
+            raise MethodNotAllowed("Utilize o método POST para cadastrar")
+        return super().put(request, *args, **kwargs)
+
+class UsuarioUpdateView(generics.UpdateAPIView):
+    queryset = Usuario.objects.all()
+    serializer_class = UsuarioSerializer
+    permission_classes = [IsAuthenticated] # Precisa estar autenticado
+
+    def put(self, request, *args, **kwargs):
+        if request.method != "PUT":
+            raise MethodNotAllowed("Utilize o método PUT para atualizar")
+        return super().put(request, *args, **kwargs)
+
+    def get_object(self):
+        try:
+            user = Usuario.objects.get(pk=self.kwargs['pk'])
+            return user
+        except Usuario.DoesNotExist:
+            raise NotFound("Usuário não encontrado")
 
 @api_view(["POST"])
-@permission_classes([AllowAny])
+@permission_classes([AllowAny]) # Não precisa estar autenticado
 def login(request):
     """
     Autentica o usuário e gera o JWT.
