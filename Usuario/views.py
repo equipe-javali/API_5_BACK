@@ -2,8 +2,6 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework import generics, status
-from django.contrib.auth import authenticate
-from django.db import IntegrityError
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from .models import Usuario
 from .serializers import UsuarioSerializer
@@ -16,7 +14,7 @@ class UsuarioCreateView(generics.CreateAPIView):
     def post(self, request, *args, **kwargs):
         if request.method != "POST":
             raise MethodNotAllowed("Utilize o método POST para cadastrar")
-        return super().put(request, *args, **kwargs)
+        return super().post(request, *args, **kwargs)
 
 class UsuarioUpdateView(generics.UpdateAPIView):
     queryset = Usuario.objects.all()
