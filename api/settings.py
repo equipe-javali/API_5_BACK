@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     'Agente',
     'Chat',
     'Contexto',
+    'Modelo', 
     'corsheaders',
 ]
 
