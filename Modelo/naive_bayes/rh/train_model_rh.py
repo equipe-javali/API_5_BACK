@@ -170,7 +170,11 @@ print("Expandindo conjunto de dados com variações automáticas...")
 augmented_training_data = []
 for question, answer in training_data_rh:
     # Adiciona a pergunta original
-    augmented_training_data.append((question, answer))
+    augmented_training_data.append((question, answer))    # In the same Django shell
+    question = "Como funcionam as férias na empresa?"
+    response = model_service.answer_question(agent_id, question)
+    print(f"Response: {response['answer']}")
+    print(f"Confidence: {response['confidence']}")
     
     # Adiciona variações automáticas
     variations = generate_question_variations(question)
