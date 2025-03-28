@@ -9,6 +9,7 @@ class UsuarioSerializer(serializers.ModelSerializer):
         fields = ["nome", "email", "senha", "admin"]
 
     def create(self, validated_data):
+        admin_flag = validated_data.pop("admin", False) 
         senha = validated_data.pop("senha")
 
         nome = validated_data.get("nome")
@@ -17,6 +18,7 @@ class UsuarioSerializer(serializers.ModelSerializer):
 
         user = Usuario.objects.create_user(**validated_data)
         user.set_password(senha)
+        user.is_staff = admin_flag
         user.save()
         return user
     
