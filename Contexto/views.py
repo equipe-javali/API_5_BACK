@@ -15,6 +15,41 @@ class ContextoCreateView(generics.CreateAPIView):
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
+def importar_contextos(request):
+    """Importa múltiplos contextos para um agente"""
+    agente_id = request.data.get("Agente_id")
+    contextos = request.data.get("contextos", [])
+    
+    if not agente_id or not isinstance(contextos, list):
+        return Response({"error": "Formato inválido. Forneça Agente_id e uma lista de contextos"}, 
+                       status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        agente = Agente.objects.get(id=agente_id)
+        contextos_criados = []
+        
+        for c in contextos:
+            if "pergunta" in c and "resposta" in c:
+                contexto = Contexto.objects.create_contexto(
+                    pergunta=c["pergunta"],
+                    resposta=c["resposta"],
+                    Agente_id=agente
+                )
+                contextos_criados.append(contexto.id)
+        
+        return Response({
+            "success": True,
+            "message": f"Criados {len(contextos_criados)} contextos para o agente {agente.nome}",
+            "contextos_ids": contextos_criados
+        }, status=status.HTTP_201_CREATED)
+        
+    except Agente.DoesNotExist:
+        return Response({"error": "Agente não encontrado"}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
 def train_agent_model(request):
     """
     Train a model for a specific agent using all its contexts
