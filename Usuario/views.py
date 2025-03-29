@@ -10,7 +10,7 @@ class UsuarioCreateView(generics.CreateAPIView):
     queryset = Usuario.objects.all()
     serializer_class = UsuarioSerializer
     permission_classes = [AllowAny] # Não precisa estar autenticado
-    
+
     def post(self, request, *args, **kwargs):
         if request.method != "POST":
             raise MethodNotAllowed("Utilize o método POST para cadastrar")
