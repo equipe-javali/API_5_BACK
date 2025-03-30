@@ -187,62 +187,32 @@ class ModelService:
         Returns:
             Dictionary with answer and confidence metrics
         """
-            # First try to get model path from database
-        trained_model = TrainedModel.objects.filter(Agente_id=agent_id, is_active=True).first()
+        # Use relative path based on this file's location instead of DB paths
+        agent_dir = os.path.join(self.base_model_dir, f'agent_{agent_id}')
+        model_path = os.path.join(agent_dir, "model.pkl")
+        vectorizer_path = os.path.join(agent_dir, "vectorizer.pkl")
         
-        if trained_model:
-            model_path = trained_model.model_path
-            vectorizer_path = trained_model.vectorizer_path
-            print(f"DEBUG: From DB - model_path: {model_path}, vectorizer_path: {vectorizer_path}")
-        else:
-            # Fallback to the filesystem path
-            agent_dir = os.path.join(self.base_model_dir, f'agent_{agent_id}')
-            model_path = os.path.join(agent_dir, "model.pkl")
-            vectorizer_path = os.path.join(agent_dir, "vectorizer.pkl")
-            print(f"DEBUG: Using filesystem paths: {model_path}, {vectorizer_path}")
+        print(f"DEBUG: Using relative paths: {model_path}, {vectorizer_path}")
         
-        # Check if the paths from database exist
+        # Check if the model files exist
         if not os.path.exists(model_path) or not os.path.exists(vectorizer_path):
             print(f"WARNING: Model files not found at paths: {model_path}, {vectorizer_path}")
             
-            # Try alternative paths
-            # Check if the path contains "Cópia_backapi5" and it's not found
-            if "Cópia_backapi5" in model_path and not os.path.exists(model_path):
-                # Try the current project directory instead
-                alt_path = model_path.replace(
-                    "C:\\Users\\marcu\\Desktop\\Cópia_backapi5", 
-                    "C:\\Users\\marcu\\Desktop\\FATEC 2025 1\\API\\API_5"
-                )
-                alt_vectorizer = vectorizer_path.replace(
-                    "C:\\Users\\marcu\\Desktop\\Cópia_backapi5", 
-                    "C:\\Users\\marcu\\Desktop\\FATEC 2025 1\\API\\API_5"
-                )
-                print(f"DEBUG: Trying alternative paths: {alt_path}, {alt_vectorizer}")
-                
-                if os.path.exists(alt_path) and os.path.exists(alt_vectorizer):
-                    model_path = alt_path
-                    vectorizer_path = alt_vectorizer
-                    print(f"DEBUG: Found model at alternative paths")
-                else:
-                    print(f"DEBUG: Model not found at alternative paths either")
+            # Try alternative path without the "agent_" prefix
+            alt_dir = os.path.join(self.base_model_dir, f'{agent_id}')
+            alt_model = os.path.join(alt_dir, "model.pkl")
+            alt_vectorizer = os.path.join(alt_dir, "vectorizer.pkl")
             
-            # If still not found, check without the "agent_" prefix
-            if not os.path.exists(model_path):
-                alt_dir = os.path.join(self.base_model_dir, f'{agent_id}')
-                alt_model = os.path.join(alt_dir, "model.pkl")
-                alt_vectorizer = os.path.join(alt_dir, "vectorizer.pkl")
-                
-                if os.path.exists(alt_model) and os.path.exists(alt_vectorizer):
-                    model_path = alt_model
-                    vectorizer_path = alt_vectorizer
-                    print(f"DEBUG: Found model at {alt_model}")
-            
-            # Final check if model exists
-            if not os.path.exists(model_path) or not os.path.exists(vectorizer_path):
+            if os.path.exists(alt_model) and os.path.exists(alt_vectorizer):
+                model_path = alt_model
+                vectorizer_path = alt_vectorizer
+                print(f"DEBUG: Found model at alternative path: {alt_model}")
+            else:
+                # Final check if model exists
                 return {
                     'success': False,
                     'error': f'Model not found for agent ID: {agent_id}',
-                    'answer': None,
+                    'answer': "Desculpe, não há um modelo treinado disponível para responder sua pergunta.",
                     'confidence': 0,
                     'in_scope': False
                 }
@@ -257,7 +227,7 @@ class ModelService:
             return {
                 'success': False,
                 'error': f'Error loading model: {str(e)}',
-                'answer': None,
+                'answer': "Desculpe, ocorreu um erro ao carregar o modelo.",
                 'confidence': 0,
                 'in_scope': False
             }
@@ -297,4 +267,4 @@ class ModelService:
                 'diff': diff,
                 'in_scope': True,
                 'top_probas': sorted_probas[:3]
-            }
+        }
