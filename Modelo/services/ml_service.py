@@ -17,6 +17,7 @@ from Agente.models import Agente
 nltk.download('rslp', quiet=True)
 nltk.download('punkt', quiet=True)
 nltk.download('stopwords', quiet=True)
+nltk.download('punkt_tab', quiet=True)
 
 # Set up stemmer
 stemmer = RSLPStemmer()
