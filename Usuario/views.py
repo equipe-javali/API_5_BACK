@@ -19,7 +19,7 @@ class UsuarioCreateView(generics.CreateAPIView):
 class UsuarioUpdateView(generics.UpdateAPIView):
     queryset = Usuario.objects.all()
     serializer_class = UsuarioSerializer
-    permission_classes = [IsAuthenticated] # Precisa estar autenticado
+    permission_classes = [AllowAny] # Precisa estar autenticado
 
     def put(self, request, *args, **kwargs):
         if request.method != "PUT":

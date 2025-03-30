@@ -11,10 +11,10 @@ from Modelo.models import TrainedModel
 class ContextoCreateView(generics.CreateAPIView):
     queryset = Contexto.objects.all()
     serializer_class = ContextoSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
 @api_view(["POST"])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def importar_contextos(request):
     """Importa múltiplos contextos para um agente"""
     agente_id = request.data.get("Agente_id")
@@ -58,7 +58,7 @@ def importar_contextos(request):
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
 @api_view(["POST"])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def train_agent_model(request):
     """
     Train a model for a specific agent using all its contexts

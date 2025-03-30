@@ -6,12 +6,9 @@ from rest_framework.exceptions import ValidationError
 class AgenteSerializer(serializers.ModelSerializer):
     class Meta:
         model = Agente
-        fields = ["nome", "descricao", "Permissao_id"]
+        fields = ["id", "nome", "descricao", "Permissao_id"]  # include id here
 
     def validate_Permissao_id(self, value):
-        """
-        Check that the permission exists before creating an agent
-        """
         try:
             permission = Permissao.objects.get(id=value.id)
             return value

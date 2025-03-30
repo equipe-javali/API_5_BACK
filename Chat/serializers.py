@@ -20,7 +20,10 @@ class MensagemSerializer(serializers.ModelSerializer):
         fields = ["texto", "Chat_id", "usuario"]
 
     def create(self, validated_data):
-        validated_data["Chat_id"] = Chat.objects.get(id=validated_data["Chat_id"])
-
+        # Check if Chat_id is already a Chat object
+        if not isinstance(validated_data["Chat_id"], Chat):
+            chat = Chat.objects.get(id=validated_data["Chat_id"])
+            validated_data["Chat_id"] = chat
+        
         mensagem = Mensagem.objects.create_mensagem(**validated_data)
         return mensagem

@@ -23,5 +23,6 @@ urlpatterns = [
     path('api/', include('Permissao.urls')),
     path('api/', include('Agente.urls')),
     path('api/', include('Chat.urls')),
-    path('api/', include('Contexto.urls'))
+    path('api/', include('Contexto.urls')),
+    path('api/', include('Modelo.urls')),
 ]
