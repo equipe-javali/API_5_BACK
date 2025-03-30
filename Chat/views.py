@@ -2,13 +2,14 @@ from rest_framework import generics
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from .models import Chat, Mensagem
 from .serializers import ChatSerializer, MensagemSerializer
 from Modelo.services.ml_service import ModelService
 
+# Modified to allow any user
 @api_view(["POST"])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def chat_view(request):
     Usuario_id = request.data.get("Usuario_id")
     Agente_id = request.data.get("Agente_id")
@@ -16,7 +17,6 @@ def chat_view(request):
     chat = Chat.objects.filter(Usuario_id=Usuario_id, Agente_id=Agente_id).first()
     if chat:
         serializer = ChatSerializer(chat)
-
         response_data = serializer.data
         mensagens = Mensagem.objects.filter(Chat_id=chat.id)
         response_data["mensagens"] = MensagemSerializer(mensagens, many=True).data
@@ -24,17 +24,19 @@ def chat_view(request):
     
     serializer = ChatSerializer(data=request.data)
     if serializer.is_valid():
-        serializer.save(Usuario_id=Usuario_id, Agente_id=Agente_id)
-
+        novo_chat = serializer.save() # Armazene o chat criado em uma variável
+        
         response_data = serializer.data
-        mensagens = Mensagem.objects.filter(Chat_id=chat.id)
+        # Use novo_chat.id em vez de chat.id
+        mensagens = Mensagem.objects.filter(Chat_id=novo_chat.id)
         response_data["mensagens"] = MensagemSerializer(mensagens, many=True).data
         return Response(response_data, status=status.HTTP_201_CREATED)
 
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+# Modified to allow any user
 @api_view(["POST"])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def chat_enviar_mensagem(request):
     texto = request.data.get("texto")
     Chat_id = request.data.get("Chat_id")
