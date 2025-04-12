@@ -10,6 +10,52 @@ class AgenteCreateView(generics.CreateAPIView):
     queryset = Agente.objects.all()
     serializer_class = AgenteSerializer
 
+class AgenteDeleteView(generics.DestroyAPIView):
+    """
+    Classe para deletar um agente específico.
+    """
+    queryset = Agente.objects.all()
+    serializer_class = AgenteSerializer
+    permission_classes = [IsAuthenticated]
+
+class AgenteUpdateView(generics.UpdateAPIView):
+    """
+    Classe para atualizar um agente específico.
+    """
+    queryset = Agente.objects.all()
+    serializer_class = AgenteSerializer
+    permission_classes = [IsAuthenticated]
+
+@api_view(["DELETE"])
+@permission_classes([IsAuthenticated])
+def delete_agent(request, id):
+    """
+    Deleta um agente específico pelo ID (id).
+    """
+    try:
+        agent = Agente.objects.get(id=id)
+        agent.delete()
+        return Response({"message": "Agente deletado com sucesso."}, status=200)
+    except Agente.DoesNotExist:
+        return Response({"error": "Agente não encontrado."}, status=404)
+
+@api_view(["PUT"])
+@permission_classes([IsAuthenticated])
+def update_agent(request, id):
+    """
+    Atualiza um agente específico pelo ID (id).
+    """
+    try:
+        agent = Agente.objects.get(id=id)
+    except Agente.DoesNotExist:
+        return Response({"error": "Agente não encontrado."}, status=404)
+
+    serializer = AgenteSerializer(agent, data=request.data, partial=True)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data, status=200)
+    return Response(serializer.errors, status=400)
+
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def list_user_agents(request):
