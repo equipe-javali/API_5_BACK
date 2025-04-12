@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from django.utils import timezone
 from .models import Chat, Mensagem
 from Usuario.models import Usuario
 from Agente.models import Agente
@@ -17,7 +18,10 @@ class ChatSerializer(serializers.ModelSerializer):
 class MensagemSerializer(serializers.ModelSerializer):
     class Meta:
         model = Mensagem
-        fields = ["texto", "Chat_id", "usuario"]
+        fields = ["texto", "Chat_id", "usuario", "dataCriacao"]
+    
+    def get_dataCriacao(self, obj):
+        return timezone.localtime(obj.dataCriacao).isoformat()
 
     def create(self, validated_data):
         # Check if Chat_id is already a Chat object
