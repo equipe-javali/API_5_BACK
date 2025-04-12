@@ -1,4 +1,6 @@
 from django.db import models
+from django.utils import timezone
+import pytz
 from Usuario.models import Usuario
 from Agente.models import Agente
 
@@ -22,5 +24,11 @@ class Mensagem(models.Model):
     texto = models.TextField(null=False, blank=False)
     Chat_id = models.ForeignKey(Chat, on_delete=models.PROTECT, null=False, blank=False)
     usuario = models.BooleanField(null=False, blank=False)
+    dataCriacao = models.DateTimeField(null=True, blank=True)
     
     objects = MensagemManager()
+
+    def save(self, *args, **kwargs):
+        if not self.dataCriacao:
+            self.dataCriacao = timezone.now()
+        super(Mensagem, self).save(*args, **kwargs)

@@ -150,3 +150,6 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 #}
 
 AUTH_USER_MODEL = 'Usuario.Usuario'
+
+TIME_ZONE = 'America/Sao_Paulo'
+USE_TZ = True
