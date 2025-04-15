@@ -22,3 +22,20 @@ class Usuario(AbstractUser):
         constraints = [
             models.UniqueConstraint(fields=['email'], name='unique_email')
         ]
+
+    def __str__(self):
+        return self.nome
+
+    @property
+    def is_admin(self):
+        """
+        Retorna True se o usuário for administrador.
+        """
+        return self.admin
+
+    @property
+    def is_user(self):
+        """
+        Retorna True se o usuário for um usuário comum (não administrador).
+        """
+        return not self.admin

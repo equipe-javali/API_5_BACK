@@ -1,7 +1,7 @@
 from django.urls import path
 from .views import AgenteCreateView, list_user_agents, list_all_agents, delete_agent, update_agent
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import IsAuthenticated
 
 urlpatterns = [
     path("agente/cadastrar", AgenteCreateView.as_view(), name="agente-cadastrar"),
