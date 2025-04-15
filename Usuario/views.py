@@ -7,6 +7,15 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from .models import Usuario
 from .serializers import UsuarioSerializer
 
+class AdminCreateView(generics.CreateAPIView):
+    queryset = Usuario.objects.all()
+    serializer_class = UsuarioSerializer
+    permission_classes = [AllowAny]  # Permite acesso sem autenticação
+
+    def perform_create(self, serializer):
+        # Garante que o usuário criado será um administrador
+        serializer.save(admin=True)
+
 class UsuarioCreateView(generics.CreateAPIView):
     queryset = Usuario.objects.all()
     serializer_class = UsuarioSerializer
