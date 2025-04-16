@@ -89,3 +89,20 @@ def login(request):
         return Response({
             "msg": "Credenciais inválidas"
         }, status=status.HTTP_401_UNAUTHORIZED)
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def listar_usuarios_todos(request):
+    if not request.user.is_staff:
+        raise PermissionDenied("Somente administratores podem acessar todos os usuários.")
+    
+    try:
+        usuarios = Usuario.objects.all()
+    except:
+        return Response({
+            "msg": "Usuários não encontratos."
+        }, status=status.HTTP_404_NOT_FOUND)
+
+    return Response({
+        "usuarios": UsuarioSerializer(usuarios, many=True).data
+    })

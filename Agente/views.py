@@ -4,7 +4,6 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from .models import Agente
 from .serializers import AgenteSerializer
-from Permissao.models import PermissaoUsuario
 
 class AgenteCreateView(generics.CreateAPIView):
     queryset = Agente.objects.all()

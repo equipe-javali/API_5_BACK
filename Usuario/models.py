@@ -1,11 +1,13 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+from Permissao.models import Permissao
 
 class Usuario(AbstractUser):
     nome = models.CharField(max_length=94, null=False, blank=False)
     # email: AbstractUser já possui um campo para e-mail
     # senha: AbstractUser já possui um campo para senha
     admin = models.BooleanField(default=False)
+    permissoes = models.ManyToManyField(Permissao)
 
     groups = models.ManyToManyField(
         "auth.Group",
