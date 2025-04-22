@@ -56,6 +56,29 @@ class UsuarioUpdateView(generics.UpdateAPIView):
         except Usuario.DoesNotExist:
             raise NotFound("Usuário não encontrado")
 
+@api_view(["DELETE"])
+@permission_classes([IsAuthenticated])
+def delete_user(request, pk):
+    try:
+        usuario = Usuario.objects.get(pk=pk)
+    except Usuario.DoesNotExist:
+        return Response({
+            "msg": "Usuário não encontrado."
+        }, status=status.HTTP_404_NOT_FOUND)
+    if request.user.is_staff:
+        usuario.delete()
+        return Response({
+            "msg": "Usuário excluído com sucesso."
+        }, status=status.HTTP_200_OK)
+
+    # Se não for administrador, verifica se está tentando excluir seu próprio usuário
+    if str(request.user.id) == str(pk):
+        usuario.delete()
+        return Response({
+            "msg": "Usuário excluído com sucesso."
+        }, status=status.HTTP_200_OK)
+    raise PermissionDenied("Você só pode excluir seu próprio usuário.")
+
 @api_view(["POST"])
 @permission_classes([AllowAny])  # Não precisa estar autenticado
 def login(request):
