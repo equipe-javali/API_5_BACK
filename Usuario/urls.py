@@ -5,6 +5,7 @@ from .views import (
     AdminCreateView,
     login,
     delete_user,
+    listar_usuario,
     listar_usuarios_todos
 )
 
@@ -14,5 +15,6 @@ urlpatterns = [
     path("usuario/atualizar/<int:pk>", UsuarioUpdateView.as_view(), name="usuario-atualizar"),
     path("usuario/excluir/<int:pk>", delete_user, name="usuario-excluir"),
     path("usuario/login", login, name="usuario-login"),
+    path("usuario/listagem/<int:pk>", listar_usuario, name="usuario-listagem"),
     path("usuario/listagem-todos", listar_usuarios_todos, name="usuario-listagem-todos"),
 ]

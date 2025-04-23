@@ -115,6 +115,23 @@ def login(request):
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
+def listar_usuario(request, pk):
+    try:
+        usuario = Usuario.objects.get(pk=pk)
+    except:
+        return Response({
+            "msg": "Usuário não encontrato."
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    if not request.user.is_staff and request.user.id != pk:
+        raise PermissionDenied("Somente administradores podem acessar outros usuários")
+    
+    return Response({
+        "usuarios": UsuarioSerializer(usuario).data
+    })
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
 def listar_usuarios_todos(request):
     if not request.user.is_staff:
         raise PermissionDenied("Somente administratores podem acessar todos os usuários.")
