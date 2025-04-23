@@ -6,7 +6,7 @@ class UsuarioSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Usuario
-        fields = ["nome", "email", "senha", "admin", "permissoes"]
+        fields = ["id", "nome", "email", "senha", "admin", "permissoes"]
 
     def create(self, validated_data):
         admin_flag = validated_data.pop("admin", False) 
