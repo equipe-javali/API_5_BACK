@@ -12,6 +12,7 @@ from sklearn.pipeline import Pipeline
 import re
 from Modelo.models import TrainedModel
 from Agente.models import Agente
+from .gemini_service import GeminiService
 
 # Ensure NLTK resources are downloaded
 nltk.download('rslp', quiet=True)
@@ -79,6 +80,12 @@ class ModelService:
     def __init__(self):
         self.base_model_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'trained_models')
         os.makedirs(self.base_model_dir, exist_ok=True)
+        
+        # Inicializar o serviço Gemini para o modelo híbrido
+        self.gemini_service = GeminiService()
+        
+        # Configurar modo híbrido (pode ser alterado em runtime)
+        self.use_hybrid_approach = True
     
     def train_model(self, agent_id, training_data):
         """
@@ -178,6 +185,7 @@ class ModelService:
     def answer_question(self, agent_id, question, threshold_abs=0.20, threshold_diff=0.035):
         """
         Answer a question using the trained model for a specific agent
+        and enhance it with Gemini if needed (modelo híbrido)
         
         Args:
             agent_id: The ID of the agent
@@ -188,84 +196,118 @@ class ModelService:
         Returns:
             Dictionary with answer and confidence metrics
         """
-        # Use relative path based on this file's location instead of DB paths
-        agent_dir = os.path.join(self.base_model_dir, f'agent_{agent_id}')
-        model_path = os.path.join(agent_dir, "model.pkl")
-        vectorizer_path = os.path.join(agent_dir, "vectorizer.pkl")
-        
-        print(f"DEBUG: Using relative paths: {model_path}, {vectorizer_path}")
-        
-        # Check if the model files exist
-        if not os.path.exists(model_path) or not os.path.exists(vectorizer_path):
-            print(f"WARNING: Model files not found at paths: {model_path}, {vectorizer_path}")
-            
-            # Try alternative path without the "agent_" prefix
-            alt_dir = os.path.join(self.base_model_dir, f'{agent_id}')
-            alt_model = os.path.join(alt_dir, "model.pkl")
-            alt_vectorizer = os.path.join(alt_dir, "vectorizer.pkl")
-            
-            if os.path.exists(alt_model) and os.path.exists(alt_vectorizer):
-                model_path = alt_model
-                vectorizer_path = alt_vectorizer
-                print(f"DEBUG: Found model at alternative path: {alt_model}")
-            else:
-                # Final check if model exists
-                return {
-                    'success': False,
-                    'error': f'Model not found for agent ID: {agent_id}',
-                    'answer': "Desculpe, não há um modelo treinado disponível para responder sua pergunta.",
-                    'confidence': 0,
-                    'in_scope': False
-                }
-        
-        # Load the model and vectorizer
         try:
-            with open(model_path, "rb") as f:
-                model = pickle.load(f)
-            with open(vectorizer_path, "rb") as f:
-                vectorizer = pickle.load(f)
+            # Obter o nome do agente para uso no Gemini
+            try:
+                agent = Agente.objects.get(id=agent_id)
+                agent_name = agent.nome
+            except Agente.DoesNotExist:
+                agent_name = "Assistente"
+                
+            # Use relative path based on this file's location instead of DB paths
+            agent_dir = os.path.join(self.base_model_dir, f'agent_{agent_id}')
+            model_path = os.path.join(agent_dir, "model.pkl")
+            vectorizer_path = os.path.join(agent_dir, "vectorizer.pkl")
+            
+            print(f"DEBUG: Using relative paths: {model_path}, {vectorizer_path}")
+            
+            # Check if the model files exist
+            if not os.path.exists(model_path) or not os.path.exists(vectorizer_path):
+                print(f"WARNING: Model files not found at paths: {model_path}, {vectorizer_path}")
+                
+                # Try alternative path without the "agent_" prefix
+                alt_dir = os.path.join(self.base_model_dir, f'{agent_id}')
+                alt_model = os.path.join(alt_dir, "model.pkl")
+                alt_vectorizer = os.path.join(alt_dir, "vectorizer.pkl")
+                
+                if os.path.exists(alt_model) and os.path.exists(alt_vectorizer):
+                    model_path = alt_model
+                    vectorizer_path = alt_vectorizer
+                    print(f"DEBUG: Found model at alternative path: {alt_model}")
+                else:
+                    # Final check if model exists
+                    print("Model not found. Using Gemini as fallback.")
+                    return self.gemini_service.answer_question(agent_id, question)
+            
+            # Load the model and vectorizer
+            try:
+                with open(model_path, "rb") as f:
+                    model = pickle.load(f)
+                with open(vectorizer_path, "rb") as f:
+                    vectorizer = pickle.load(f)
+            except Exception as e:
+                print(f"Error loading model: {str(e)}. Using Gemini as fallback.")
+                return self.gemini_service.answer_question(agent_id, question)
+            
+            # Transform the question
+            X_input = vectorizer.transform([question])
+            probas = model.predict_proba(X_input)[0]
+            
+            # Get classes and probabilities
+            classes = model.classes_
+            class_probas = [(classes[i], probas[i]) for i in range(len(classes))]
+            
+            # Sort by probability (descending)
+            sorted_probas = sorted(class_probas, key=lambda x: x[1], reverse=True)
+            
+            top_class = sorted_probas[0][0]
+            top_prob = sorted_probas[0][1]
+            second_prob = sorted_probas[1][1] if len(sorted_probas) > 1 else 0
+            
+            # Check if answer is below confidence thresholds
+            diff = top_prob - second_prob
+            
+            # MODELO HÍBRIDO: baixa confiança -> usa Gemini diretamente
+            if top_prob < threshold_abs or diff < threshold_diff:
+                print(f"Low confidence: {top_prob:.4f}. Using Gemini to generate response.")
+                return self.gemini_service.answer_question(agent_id, question)
+            else:
+                # MODELO HÍBRIDO: alta confiança -> usa modelo local e aprimora com Gemini
+                if self.use_hybrid_approach:
+                    print(f"High confidence: {top_prob:.4f}. Enhancing model response with Gemini.")
+                    
+                    # Obter a resposta original do modelo
+                    original_answer = top_class
+                    
+                    # Usar Gemini para aprimorar a resposta
+                    enhanced_answer = self.enhance_response_with_gemini(
+                        original_answer, question, agent_name
+                    )
+                    
+                    return {
+                        'success': True,
+                        'answer': enhanced_answer,
+                        'original_answer': original_answer,
+                        'confidence': top_prob,
+                        'diff': diff,
+                        'in_scope': True,
+                        'top_probas': sorted_probas[:3],
+                        'enhanced': True
+                    }
+                else:
+                    # Usar apenas o modelo local sem aprimoramento
+                    return {
+                        'success': True,
+                        'answer': top_class,
+                        'confidence': top_prob,
+                        'diff': diff,
+                        'in_scope': True,
+                        'top_probas': sorted_probas[:3],
+                        'enhanced': False
+                    }
         except Exception as e:
-            return {
-                'success': False,
-                'error': f'Error loading model: {str(e)}',
-                'answer': "Desculpe, ocorreu um erro ao carregar o modelo.",
-                'confidence': 0,
-                'in_scope': False
-            }
-        
-        # Transform the question
-        X_input = vectorizer.transform([question])
-        probas = model.predict_proba(X_input)[0]
-        
-        # Get classes and probabilities
-        classes = model.classes_
-        class_probas = [(classes[i], probas[i]) for i in range(len(classes))]
-        
-        # Sort by probability (descending)
-        sorted_probas = sorted(class_probas, key=lambda x: x[1], reverse=True)
-        
-        top_answer = sorted_probas[0][0]
-        top_prob = sorted_probas[0][1]
-        second_prob = sorted_probas[1][1] if len(sorted_probas) > 1 else 0
-        
-        # Check if answer is below confidence thresholds
-        diff = top_prob - second_prob
-        
-        if top_prob < threshold_abs or diff < threshold_diff:
-            return {
-                'success': True,
-                'answer': "Desculpe, não encontrei uma resposta relevante para sua pergunta.",
-                'confidence': top_prob,
-                'diff': diff,
-                'in_scope': False,
-                'top_probas': sorted_probas[:3]
-            }
-        else:
-            return {
-                'success': True,
-                'answer': top_answer,
-                'confidence': top_prob,
-                'diff': diff,
-                'in_scope': True,
-                'top_probas': sorted_probas[:3]
-        }
+            print(f"Unexpected error in answer_question: {str(e)}. Using Gemini as fallback.")
+            # Em caso de qualquer erro, usar Gemini como fallback
+            return self.gemini_service.answer_question(agent_id, question)
+    
+    def enhance_response_with_gemini(self, original_response, question, agent_name="Assistente"):
+        """
+        Aprimora a resposta do modelo local usando a API Gemini
+        para torná-la mais conversacional e natural
+        """
+        try:
+            return self.gemini_service.enhance_response(original_response, question, agent_name)
+        except Exception as e:
+            print(f"Error enhancing response with Gemini: {str(e)}")
+            # Em caso de erro, retornar a resposta original
+            return original_response
