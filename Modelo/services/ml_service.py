@@ -12,6 +12,17 @@ from sklearn.pipeline import Pipeline
 import re
 from Modelo.models import TrainedModel
 from Agente.models import Agente
+from .gemini_service import GeminiService
+
+class ModelService:
+    def __init__(self):
+        # Instanciar o serviço do Gemini
+        self.gemini_service = GeminiService()
+        
+    def answer_question(self, agent_id, question):
+        """Responde uma pergunta usando o modelo Gemini"""
+        # Use o serviço Gemini para responder
+        return self.gemini_service.answer_question(agent_id, question)
 
 # Ensure NLTK resources are downloaded
 nltk.download('rslp', quiet=True)

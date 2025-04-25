@@ -9,6 +9,7 @@ from Modelo.services.ml_service import ModelService
 from Agente.models import Agente
 from Usuario.models import Usuario
 from .models import Chat
+from Modelo.services.gemini_service import GeminiService
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
@@ -53,6 +54,34 @@ def chat_view(request):
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 # Modified to allow any user
+
+
+class ModelService:
+    def __init__(self):
+        # Instanciar o serviço do Gemini
+        self.gemini_service = GeminiService()
+        
+    def answer_question(self, agent_id, question):
+        """Responde uma pergunta usando o modelo Gemini"""
+        # Use o serviço Gemini para responder
+        return self.gemini_service.answer_question(agent_id, question)
+    
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def listar_chatbots(request):
+    """
+    Retorna os chatbots pertencentes ao usuário autenticado.
+    """
+    if request.user.is_staff:
+        # Administradores podem acessar todos os chatbots
+        chatbots = Chat.objects.all()
+    else:
+        # Usuários comuns acessam apenas seus próprios chatbots
+        chatbots = Chat.objects.filter(Usuario_id=request.user.id)
+
+    serializer = ChatSerializer(chatbots, many=True)
+    return Response(serializer.data)
+
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def chat_enviar_mensagem(request):
@@ -62,7 +91,7 @@ def chat_enviar_mensagem(request):
         
         print(f"DEBUG: Received message request with texto: {texto}, Chat_id: {Chat_id}")
 
-        # Save user message
+        # Salvar mensagem do usuário
         modified_data = request.data.copy()
         modified_data["usuario"] = True
 
@@ -73,11 +102,12 @@ def chat_enviar_mensagem(request):
             print(f"DEBUG: Saved user message: {mensagem_usuario.id}")
 
             try:
-                # Get the chat and agent
+                # Obter o chat e o agente
                 chat = Chat.objects.get(id=Chat_id)
                 print(f"DEBUG: Found chat: {chat.id}")
                 agent_id = chat.Agente_id.id
                 print(f"DEBUG: Found agent_id: {agent_id} for chat_id: {Chat_id}")
+                
             except Exception as chat_error:
                 print(f"ERROR retrieving chat: {str(chat_error)}")
                 return Response({
@@ -86,13 +116,14 @@ def chat_enviar_mensagem(request):
                 }, status=status.HTTP_404_NOT_FOUND)
 
             try:
-                # Get AI response
+                # Obter resposta da IA
                 model_service = ModelService()
                 print(f"DEBUG: Created ModelService instance")
                 result = model_service.answer_question(agent_id, texto)
                 print(f"DEBUG: Got result from answer_question: {result}")
             except Exception as model_error:
                 print(f"ERROR in model service: {str(model_error)}")
+                import traceback
                 print(traceback.format_exc())
                 return Response({
                     "error": "Model service error",
@@ -103,44 +134,21 @@ def chat_enviar_mensagem(request):
             if not ai_response or ai_response.strip() == "":
                 ai_response = "Desculpe, não consegui processar sua pergunta."
             
-            print(f"DEBUG: AI response: {ai_response}")
-
-            # Save AI response
-            ai_message_data = {
-                "texto": ai_response,
-                "Chat_id": Chat_id,
-                "usuario": False
-            }
-
-            ai_serializer = MensagemSerializer(data=ai_message_data)
-            if ai_serializer.is_valid():
-                ai_message = ai_serializer.save()
-                print(f"DEBUG: Saved AI message: {ai_message.id}")
-
-                # Return both messages
-                return Response({
-                    "user_message": serializer.data,
-                    "ai_message": ai_serializer.data,
-                    "confidence": result.get('confidence', 0),
-                    "in_scope": result.get('in_scope', False)
-                }, status=status.HTTP_201_CREATED)
-            else:
-                print(f"DEBUG: AI message serializer errors: {ai_serializer.errors}")
-                return Response({
-                    "error": "AI message serializer errors",
-                    "details": ai_serializer.errors
-                }, status=status.HTTP_400_BAD_REQUEST)
-        else:
-            print(f"DEBUG: User message serializer errors: {serializer.errors}")
+            # Salvar resposta da IA
+            ai_message = Mensagem.objects.create(
+                texto=ai_response,
+                Chat_id=chat,
+                usuario=False
+            )
+            
             return Response({
-                "error": "User message serializer errors",
-                "details": serializer.errors
-            }, status=status.HTTP_400_BAD_REQUEST)
+                "success": True,
+                "user_message": MensagemSerializer(mensagem_usuario).data,
+                "ai_message": MensagemSerializer(ai_message).data
+            })
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     except Exception as e:
         import traceback
-        print(f"ERROR in chat_enviar_mensagem: {str(e)}")
         print(traceback.format_exc())
-        return Response({
-            "error": "Internal Server Error",
-            "details": str(e)
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
