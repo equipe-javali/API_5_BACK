@@ -4,6 +4,8 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.exceptions import PermissionDenied, MethodNotAllowed, NotFound
 from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from drf_yasg import openapi
+from drf_yasg.utils import swagger_auto_schema
 from .models import Usuario
 from .serializers import UsuarioSerializer
 
@@ -43,7 +45,7 @@ class UsuarioUpdateView(generics.UpdateAPIView):
             return super().put(request, *args, **kwargs)
 
         # Se não for administrador, verifica se está tentando atualizar seus próprios dados
-        if str(request.user.id) != str(self.kwargs['pk']):
+        if str(request.user.id) != str(self.kwargs["pk"]):
             raise PermissionDenied("Você só pode atualizar seus próprios dados.")
 
         return super().put(request, *args, **kwargs)
@@ -51,7 +53,7 @@ class UsuarioUpdateView(generics.UpdateAPIView):
     def get_object(self):
         try:
             # Busca o usuário pelo ID fornecido na URL
-            user = Usuario.objects.get(pk=self.kwargs['pk'])
+            user = Usuario.objects.get(pk=self.kwargs["pk"])
             return user
         except Usuario.DoesNotExist:
             raise NotFound("Usuário não encontrado")
@@ -79,6 +81,22 @@ def delete_user(request, pk):
         }, status=status.HTTP_200_OK)
     raise PermissionDenied("Você só pode excluir seu próprio usuário.")
 
+@swagger_auto_schema(
+    method="post",
+    request_body=openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        properties={
+            "email": openapi.Schema(type=openapi.TYPE_STRING, format=openapi.FORMAT_EMAIL, description="Email"),
+            "senha": openapi.Schema(type=openapi.TYPE_STRING, description="Senha"),
+        },
+        required=["email", "senha"],
+    ),
+    responses={
+        200: "Retorna o token e informações adicionais",
+        404: "Email não cadastrado",
+        401: "Credenciais inválidas"
+    }
+)
 @api_view(["POST"])
 @permission_classes([AllowAny])  # Não precisa estar autenticado
 def login(request):
