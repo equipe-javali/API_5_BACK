@@ -116,7 +116,7 @@ def chat_enviar_mensagem(request):
                 }, status=status.HTTP_404_NOT_FOUND)
 
             try:
-                # Obter resposta da IA
+                # Obter resposta da IA usando o ModelService (que agora integra Gemini)
                 model_service = ModelService()
                 print(f"DEBUG: Created ModelService instance")
                 result = model_service.answer_question(agent_id, texto)
@@ -130,7 +130,8 @@ def chat_enviar_mensagem(request):
                     "details": str(model_error)
                 }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-            ai_response = result.get('answer')
+            # Obter a resposta a partir do resultado
+            ai_response = result.get('answer', '')
             if not ai_response or ai_response.strip() == "":
                 ai_response = "Desculpe, não consegui processar sua pergunta."
             
