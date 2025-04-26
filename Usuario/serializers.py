@@ -9,21 +9,26 @@ class UsuarioSerializer(serializers.ModelSerializer):
         fields = ["id", "nome", "email", "senha", "admin", "permissoes"]
 
     def create(self, validated_data):
+        print("Dados recebidos:", validated_data)
         admin_flag = validated_data.pop("admin", False) 
         senha = validated_data.pop("senha")
-        permissoes = validated_data.pop("permissoes")
-
+        
+        # Permissões são opcionais para usuários comuns
+        permissoes = validated_data.pop("permissoes", [])
+    
         username = validated_data.get("email")
         validated_data["username"] = username
-
+    
         user = Usuario.objects.create_user(**validated_data)
         user.set_password(senha)
         user.is_staff = admin_flag
         user.save()
-
-        for permissao in permissoes:
-            user.permissoes.add(permissao)
-
+    
+        # Adicionar permissões apenas se a lista não estiver vazia
+        if permissoes:
+            for permissao in permissoes:
+                user.permissoes.add(permissao)
+    
         return user
     
     def update(self, instance, validated_data):
