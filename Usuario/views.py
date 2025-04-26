@@ -152,3 +152,39 @@ def listar_usuarios_todos(request):
     return Response({
         "usuarios": UsuarioSerializer(usuarios, many=True).data
     })
+
+@api_view(["PUT"])
+@permission_classes([IsAuthenticated])
+def atualizar_permissoes_usuario(request, pk):
+    """
+    Endpoint específico para atualizar apenas as permissões de um usuário.
+    """
+    try:
+        usuario = Usuario.objects.get(pk=pk)
+    except Usuario.DoesNotExist:
+        return Response({"message": "Usuário não encontrado."}, status=status.HTTP_404_NOT_FOUND)
+    
+    # Verificar permissões (admin ou próprio usuário)
+    if not request.user.is_staff and request.user.id != pk:
+        raise PermissionDenied("Você só pode atualizar suas próprias permissões.")
+    
+    # Obter as permissões do request
+    permissoes_ids = request.data.get("permissoes", [])
+    if not isinstance(permissoes_ids, list):
+        return Response({"message": "O campo 'permissoes' deve ser uma lista de IDs."}, 
+                       status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        # Atualizar as permissões
+        usuario.permissoes.clear()  # Remove permissões existentes
+        for permissao_id in permissoes_ids:
+            usuario.permissoes.add(permissao_id)
+        
+        # Retornar os dados atualizados usando o serializer
+        return Response({
+            "message": "Permissões atualizadas com sucesso.",
+            "usuario": UsuarioSerializer(usuario).data
+        }, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"message": f"Erro ao atualizar permissões: {str(e)}"}, 
+                       status=status.HTTP_500_INTERNAL_SERVER_ERROR)
