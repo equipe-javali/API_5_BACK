@@ -8,6 +8,7 @@ from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from .models import Usuario
 from .serializers import UsuarioSerializer
+from django.contrib.auth.models import User
 
 class AdminCreateView(generics.CreateAPIView):
     queryset = Usuario.objects.all()
@@ -98,38 +99,25 @@ def delete_user(request, pk):
     }
 )
 @api_view(["POST"])
-@permission_classes([AllowAny])  # Não precisa estar autenticado
+@permission_classes([AllowAny])
 def login(request):
-    """
-    Autentica o usuário e gera o JWT.
-    """
     email = request.data.get("email")
     password = request.data.get("senha")
 
     try:
+        # Use o modelo personalizado Usuario
         user = Usuario.objects.get(email=email)
     except Usuario.DoesNotExist:
-        return Response({
-            "msg": "Email não cadastrado."
-        }, status=status.HTTP_404_NOT_FOUND)
+        return Response({"msg": "Email não cadastrado."}, status=status.HTTP_404_NOT_FOUND)
 
     if user.check_password(password):
-        # Gera os tokens JWT
         refresh = RefreshToken.for_user(user)
-        access_token = str(refresh.access_token)
-
-        # Retorna o token e informações adicionais
         return Response({
-            "access_token": access_token,
+            "access_token": str(refresh.access_token),
             "refresh_token": str(refresh),
-            "is_admin": user.is_staff,  # Indica se o usuário é administrador
-            "nome": user.nome,  # Nome do usuário
-            "email": user.email  # Email do usuário
         }, status=status.HTTP_200_OK)
     else:
-        return Response({
-            "msg": "Credenciais inválidas"
-        }, status=status.HTTP_401_UNAUTHORIZED)
+        return Response({"msg": "Credenciais inválidas"}, status=status.HTTP_401_UNAUTHORIZED)
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
