@@ -4,7 +4,7 @@ from .models import Permissao
 class PermissaoSerializer(serializers.ModelSerializer):
     class Meta:
         model = Permissao
-        fields = ["nome"]
+        fields = ["id", "nome"]
 
     def create(self, validated_data):
         permissao = Permissao.objects.create_permissao(**validated_data)
