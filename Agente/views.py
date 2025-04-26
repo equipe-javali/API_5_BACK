@@ -3,6 +3,8 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from .models import Agente
+from django.contrib.auth import get_user_model
+Usuario = get_user_model()
 from .serializers import AgenteSerializer
 
 class AgenteCreateView(generics.CreateAPIView):
@@ -58,9 +60,25 @@ def update_agent(request, id):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def list_user_agents(request):
-    """Lista todos os agentes que o usuário tem permissão para acessar"""
-    # Modified to return all agents without permission check
-    agents = Agente.objects.all()
+    """Lista apenas os agentes que o usuário tem permissão para acessar"""
+    user = request.user
+    
+    # Obter as permissões do usuário (IDs dos agentes permitidos)
+    user_permissions = []
+    
+    # Verificar como as permissões estão estruturadas no modelo
+    if hasattr(user, 'permissoes') and isinstance(user.permissoes, list):
+        # Se permissões são armazenadas diretamente como lista
+        user_permissions = user.permissoes
+    else:
+        # Buscar do relacionamento (mais comum em Django)
+        user_data = Usuario.objects.filter(id=user.id).values('permissoes').first()
+        if user_data and 'permissoes' in user_data:
+            user_permissions = user_data['permissoes']
+    
+    # Filtrar apenas os agentes com permissão
+    agents = Agente.objects.filter(id__in=user_permissions)
+    
     serializer = AgenteSerializer(agents, many=True)
     return Response(serializer.data)
 
