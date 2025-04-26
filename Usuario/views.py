@@ -101,23 +101,27 @@ def delete_user(request, pk):
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def login(request):
-    email = request.data.get("email")
-    password = request.data.get("senha")
+    email = request.data.get("email", None)
+    senha = request.data.get("senha", None)
+    
+    if email and senha:
+        try:
+            user = Usuario.objects.get(email=email)
+            if user.check_password(senha):
+                refresh = RefreshToken.for_user(user)
+                return Response({
+                            'access_token': str(refresh.access_token),
+                            'refresh_token': str(refresh),
+                            'admin': user.admin,
+                            'is_staff': user.is_staff,
+                            'is_admin': user.is_admin
+                        })
 
-    try:
-        # Use o modelo personalizado Usuario
-        user = Usuario.objects.get(email=email)
-    except Usuario.DoesNotExist:
-        return Response({"msg": "Email não cadastrado."}, status=status.HTTP_404_NOT_FOUND)
-
-    if user.check_password(password):
-        refresh = RefreshToken.for_user(user)
-        return Response({
-            "access_token": str(refresh.access_token),
-            "refresh_token": str(refresh),
-        }, status=status.HTTP_200_OK)
-    else:
-        return Response({"msg": "Credenciais inválidas"}, status=status.HTTP_401_UNAUTHORIZED)
+            
+            else:
+                return Response({"msg": "Credenciais inválidas"}, status=status.HTTP_401_UNAUTHORIZED)
+        except Usuario.DoesNotExist:
+            return Response({"msg": "Email não cadastrado"}, status=status.HTTP_404_NOT_FOUND)
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
