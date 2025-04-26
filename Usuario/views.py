@@ -9,27 +9,67 @@ from drf_yasg.utils import swagger_auto_schema
 from .models import Usuario
 from .serializers import UsuarioSerializer
 from django.contrib.auth.models import User
+from Agente.models import Agente
+
 
 class AdminCreateView(generics.CreateAPIView):
     queryset = Usuario.objects.all()
     serializer_class = UsuarioSerializer
     permission_classes = [AllowAny]  # Permite acesso sem autenticação
 
+    def create(self, request, *args, **kwargs):
+        # Modificar o request antes da validação
+        data = request.data.copy()
+        
+        # Obter um ID de agente válido (o primeiro disponível)
+        primeiro_agente = Agente.objects.first()
+        if primeiro_agente:
+            # Garantir que haja pelo menos um agente na lista de permissões
+            data['permissoes'] = [primeiro_agente.id]
+        
+        # Atualizar o request com os dados modificados
+        request._full_data = data
+        
+        # Continuar com o processamento normal
+        return super().create(request, *args, **kwargs)
+        
     def perform_create(self, serializer):
-        # Garante que o usuário criado será um administrador
-        serializer.save(admin=True)
+        # Cria o usuário com admin=True
+        usuario = serializer.save(admin=True)
+        
+        # Adicionar TODOS os agentes às permissões do administrador
+        agentes = Agente.objects.all()
+        
+        # Limpar permissões existentes para evitar duplicatas
+        usuario.permissoes.clear()
+        
+        # Adicionar todos os agentes
+        for agente in agentes:
+            usuario.permissoes.add(agente.id)
 
 class UsuarioCreateView(generics.CreateAPIView):
     queryset = Usuario.objects.all()
     serializer_class = UsuarioSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]  # Requer autenticação
    
-
     def post(self, request, *args, **kwargs):
         # Verifica se o usuário autenticado é administrador
         if not request.user.is_staff:
             raise PermissionDenied("Apenas administradores podem cadastrar novos usuários.")
+        
+        # Assegurar que haja pelo menos uma permissão
+        data = request.data.copy()
+        if not data.get('permissoes') or len(data.get('permissoes')) == 0:
+            # Obter primeiro agente disponível para atribuir permissão mínima
+            primeiro_agente = Agente.objects.first()
+            if primeiro_agente:
+                data['permissoes'] = [primeiro_agente.id]
+        
+        request._full_data = data
         return super().post(request, *args, **kwargs)
+    
+    def perform_create(self, serializer):
+        usuario = serializer.save(admin=False)
 
 class UsuarioUpdateView(generics.UpdateAPIView):
     queryset = Usuario.objects.all()
@@ -101,27 +141,36 @@ def delete_user(request, pk):
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def login(request):
-    email = request.data.get("email", None)
-    senha = request.data.get("senha", None)
-    
-    if email and senha:
-        try:
-            user = Usuario.objects.get(email=email)
-            if user.check_password(senha):
-                refresh = RefreshToken.for_user(user)
-                return Response({
-                            'access_token': str(refresh.access_token),
-                            'refresh_token': str(refresh),
-                            'admin': user.admin,
-                            'is_staff': user.is_staff,
-                            'is_admin': user.is_admin
-                        })
+    """
+    Autentica o usuário e gera o JWT.
+    """
+    email = request.data.get("email")
+    password = request.data.get("senha")
 
-            
-            else:
-                return Response({"msg": "Credenciais inválidas"}, status=status.HTTP_401_UNAUTHORIZED)
-        except Usuario.DoesNotExist:
-            return Response({"msg": "Email não cadastrado"}, status=status.HTTP_404_NOT_FOUND)
+    try:
+        user = Usuario.objects.get(email=email)
+    except Usuario.DoesNotExist:
+        return Response({
+            "msg": "Email não cadastrado."
+        }, status=status.HTTP_404_NOT_FOUND)
+
+    if user.check_password(password):
+        # Gera os tokens JWT
+        refresh = RefreshToken.for_user(user)
+        access_token = str(refresh.access_token)
+
+        # Retorna o token e informações adicionais
+        return Response({
+            "access_token": access_token,
+            "refresh_token": str(refresh),
+            "is_admin": user.is_staff,  # Indica se o usuário é administrador
+            "nome": user.nome,  # Nome do usuário
+            "email": user.email  # Email do usuário
+        }, status=status.HTTP_200_OK)
+    else:
+        return Response({
+            "msg": "Credenciais inválidas"
+        }, status=status.HTTP_401_UNAUTHORIZED)
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
