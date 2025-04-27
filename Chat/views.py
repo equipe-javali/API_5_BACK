@@ -21,8 +21,28 @@ def iniciar_conversa(request):
     try:
         agente = Agente.objects.get(id=agenteId)
         usuario = Usuario.objects.get(id=usuarioId)
-        chat = Chat.objects.create_chat(Usuario_id=usuario, Agente_id=agente)
-        return Response({"chat_id": chat.id}, status=status.HTTP_201_CREATED)
+        # se já existir, não cria de novo
+        chat, created = Chat.objects.get_or_create(
+            Usuario_id=usuario,
+            Agente_id=agente
+        )
+
+        # buscar todo o histórico desse chat
+        mensagens = Mensagem.objects.filter(Chat_id=chat)
+        serializer_msgs = MensagemSerializer(mensagens, many=True)
+
+        return Response({
+            "chat_id": chat.id,
+            "messages": serializer_msgs.data,
+            "created": created
+        }, status=status.HTTP_200_OK)
+
+    except Agente.DoesNotExist:
+        return Response({"error": "Agente não encontrado."},
+                        status=status.HTTP_404_NOT_FOUND)
+    except Usuario.DoesNotExist:
+        return Response({"error": "Usuário não encontrado."},
+                        status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 

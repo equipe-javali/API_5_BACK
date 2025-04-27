@@ -17,7 +17,7 @@ class ChatSerializer(serializers.ModelSerializer):
 class MensagemSerializer(serializers.ModelSerializer):
     class Meta:
         model = Mensagem
-        fields = ["texto", "Chat_id", "usuario"]
+        fields = ["id", "texto", "Chat_id", "usuario", "dataCriacao"]
 
     def create(self, validated_data):
         # Check if Chat_id is already a Chat object
