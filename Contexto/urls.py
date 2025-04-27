@@ -4,7 +4,8 @@ from .views import (
     importar_contextos, 
     train_agent_model, 
     get_agent_response,
-    list_agent_contexts
+    list_agent_contexts,
+    update_mass_contexts
 )
 
 urlpatterns = [
@@ -13,4 +14,5 @@ urlpatterns = [
     path("contexto/treinar", train_agent_model, name="contexto-treinar"),
     path("contexto/responder", get_agent_response, name="contexto-responder"),
     path("contexto/listar/<int:agent_id>", list_agent_contexts, name="contexto-listar"),
+    path("contexto/atualizar-massa/<int:agent_id>", update_mass_contexts, name="contexto-editar-em-massa"),
 ]
