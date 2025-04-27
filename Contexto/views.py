@@ -166,6 +166,113 @@ def get_agent_response(request):
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+# @api_view(["PUT"])
+# @permission_classes([AllowAny])  # Ajuste as permissões conforme necessário
+# def update_agent_context(request, agent_id):
+#     """
+#     Atualiza os contextos de um agente específico
+#     """
+#     try:
+#         # Verifica se o agente existe
+#         agente = Agente.objects.get(id=agent_id)
+
+#         # Obtém os dados do corpo da requisição
+#         body = request.data
+#         contexts = body.get("contexts", [])
+
+#         if not contexts:
+#             return Response(
+#                 {"error": "O campo 'contexts' é obrigatório e deve conter uma lista."},
+#                 status=status.HTTP_400_BAD_REQUEST,
+#             )
+
+#         # Atualiza ou cria os contextos
+#         for context in contexts:
+#             pergunta = context.get("pergunta")
+#             resposta = context.get("resposta")
+
+#             if not pergunta or not resposta:
+#                 return Response(
+#                     {"error": "Cada contexto deve conter 'pergunta' e 'resposta'."},
+#                     status=status.HTTP_400_BAD_REQUEST,
+#                 )
+
+#             # Atualiza ou cria o contexto
+#             Contexto.objects.update_or_create(
+#                 Agente_id=agente,
+#                 pergunta=pergunta,
+#                 defaults={"resposta": resposta},
+#             )
+
+#         return Response({"success": True, "message": "Contextos atualizados com sucesso!"}, status=status.HTTP_200_OK)
+
+#     except Agente.DoesNotExist:
+#         return Response({"error": "Agente não encontrado."}, status=status.HTTP_404_NOT_FOUND)
+#     except Exception as e:
+#         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+#     w
+
+@api_view(["PUT"])
+@permission_classes([AllowAny])
+def edit_mass_contexts(request, agent_id):
+    """
+    Edita contextos em massa para um agente específico.
+    """
+    try:
+        # Busca o agente pelo ID
+        agente = Agente.objects.get(id=agent_id)
+    except Agente.DoesNotExist:
+        return Response({"error": "Agente não encontrado"}, status=status.HTTP_404_NOT_FOUND)
+
+    # Busca os contextos associados ao agente
+    contextos = Contexto.objects.filter(Agente_id=agent_id)
+    novos_contextos = request.data.get("contexts", [])
+
+    if not isinstance(novos_contextos, list):
+        return Response({
+            "error": "Formato inválido. Deve ser uma lista de objetos."
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    atualizados = []
+    novos_ids = []
+
+    # Atualiza os contextos existentes
+    for contexto, novo_dado in zip(contextos, novos_contextos):
+        serializer = ContextoSerializer(contexto, data=novo_dado, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            atualizados.append(serializer.data)
+            novos_ids.append(contexto.id)
+        else:
+            return Response({
+                "error": "Erro ao atualizar alguns contextos.",
+                "details": serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+    # Cria novos contextos caso mais dados sejam fornecidos do que existem contextos
+    for novo_dado in novos_contextos[len(contextos):]:
+        serializer = ContextoSerializer(data={**novo_dado, "Agente_id": agent_id})
+        if serializer.is_valid():
+            contexto = serializer.save()
+            atualizados.append(serializer.data)
+            novos_ids.append(contexto.id)
+        else:
+            return Response({
+                "error": "Erro ao criar contextos.",
+                "details": serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+    # Exclui contextos antigos que não estão na lista de novos IDs
+    contextos_excluir = Contexto.objects.filter(Agente_id=agent_id).exclude(id__in=novos_ids)
+    excluidos_count = contextos_excluir.count()
+    contextos_excluir.delete()
+
+    return Response({
+        "success": True,
+        "message": f"Processados {len(atualizados)} contextos para o agente '{agente.nome}'. {excluidos_count} contextos excluídos.",
+        "contexts": atualizados
+    }, status=status.HTTP_200_OK)
+    
 @api_view(["GET"])
 @permission_classes([AllowAny])  # Allow anyone to see contexts for an agent
 def list_agent_contexts(request, agent_id):
