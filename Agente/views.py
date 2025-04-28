@@ -11,9 +11,25 @@ class AgenteCreateView(generics.CreateAPIView):
     queryset = Agente.objects.all()
     serializer_class = AgenteSerializer
 
+class AgenteDeleteView(generics.DestroyAPIView):
+    """
+    Classe para deletar um agente específico.
+    """
+    queryset = Agente.objects.all()
+    serializer_class = AgenteSerializer
+    permission_classes = [IsAuthenticated]
+
+class AgenteUpdateView(generics.UpdateAPIView):
+    """
+    Classe para atualizar um agente específico.
+    """
+    queryset = Agente.objects.all()
+    serializer_class = AgenteSerializer
+    permission_classes = [IsAuthenticated]
+
 @api_view(["DELETE"])
 @permission_classes([IsAuthenticated])
-def delete_agent(_, id):
+def delete_agent(request, id):
     """
     Deleta um agente específico pelo ID (id).
     """
@@ -47,6 +63,7 @@ def list_user_agents(request):
     """Lista apenas os agentes que o usuário tem permissão para acessar"""
     user = request.user
     
+    # Obter as permissões do usuário (IDs dos agentes permitidos)
     user_permissions = []
     
     # Verificar como as permissões estão estruturadas no modelo
