@@ -7,13 +7,8 @@ djangorestframework==3.15.2
 djangorestframework-simplejwt==5.5.0
 google-generativeai==0.8.5
 whitenoise
-drf-yasg==1.21.10 # Para documentação da API (Swagger/OpenAPI)
-
-# Dependências do drf-yasg (geralmente instaladas automaticamente, mas bom listar se houver problemas)
-# inflection>=0.5.1
-# coreapi>=2.3.3 (se usado explicitamente, drf-yasg pode não precisar mais dele diretamente)
-
-# Outras dependências diretas que seu código pode usar:
-# PyYAML (se você usa YAML em algum lugar, drf-yasg pode precisar)
-# pytz (geralmente uma dependência do Django)
-# sqlparse (geralmente uma dependência do Django)
+drf-yasg==1.21.10
+# Se drf-yasg reclamar de dependências, adicione:
+# PyYAML
+# inflection
+# coreapi # (Verifique se é realmente necessário pelo drf-yasg ou se é legado)
