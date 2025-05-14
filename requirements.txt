@@ -12,6 +12,9 @@ pandas
 scikit-learn
 whitenoise
 drf-yasg==1.21.10
+pyasn1==0.6.0
+pyasn1-modules==0.4.0
+cryptography==42.0.8
 # Se drf-yasg reclamar de dependências, adicione:
 # PyYAML
 # inflection
