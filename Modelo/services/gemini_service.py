@@ -44,9 +44,8 @@ class GeminiService:
                 
                 # Em produção, usar um modo econômico que limita chamadas
                 if self.is_deploy_environment:
-                    # Em ambiente de produção, usar principalmente o fallback
-                    # e definir uma probabilidade baixa de usar a API real
-                    self.api_usage_probability = 0.10  # Apenas 10% das solicitações usam a API
+                   
+                    self.api_usage_probability = 0.50  # Apenas 50% das solicitações usam a API
                     print(f"Modo econômico ativado: {int(self.api_usage_probability * 100)}% de uso da API")
                     self.model_name = "gemini-1.5-flash"  # Modelo mais econômico
                     
@@ -222,17 +221,12 @@ class GeminiService:
 
             CONTEXTO AUTORIZADO (USE APENAS ESTAS INFORMAÇÕES):
             {context_text}
-
-            INSTRUÇÕES IMPORTANTES:
-            1. Responda APENAS com base nas informações do contexto acima.
-            2. Se a informação não estiver no contexto fornecido, diga: "Este assunto deve ser direcionado ao setor responsável, pois não tenho informações suficientes a respeito."
-            3. NÃO invente ou adicione informações de seu conhecimento geral.
-            4. Use um tom natural e conversacional, como se estivesse em um diálogo real.
-            5. Seja conciso e direto, mas mantenha um tom cordial e prestativo.
-            6. Inclua pequenas expressões conversacionais naturais quando adequado.
-            7. Responda em português do Brasil com linguagem acessível.
+           
 
             Pergunta do usuário: {question}
+           
+             Se a resposta não estiver no contexto, responda educadamente que não possui essa informação e que a pessoa deverá contatar o setor responsável.
+            Responda em português do Brasil de forma natural e conversacional.
             """
                 
             print(f"Enviando prompt para o modelo {self.model_name}")
