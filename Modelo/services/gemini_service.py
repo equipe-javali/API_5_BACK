@@ -51,7 +51,7 @@ class GeminiService:
                     self.model_name = "gemini-1.5-flash"  # Modelo mais econômico
                     
                     # Cache de longa duração em produção
-                    self.cache_ttl = 60 * 60 * 24 * 7  # 7 dias
+                    self.cache_ttl = 60 * 60 * 24 * 7 * 14  # 7 dias
                     
                 else:
                     # Em ambiente de desenvolvimento, usar a API normalmente
@@ -81,6 +81,9 @@ class GeminiService:
                 
                 print(f"Usando modelo: {self.model_name}")
                 self.model = genai.GenerativeModel(self.model_name)
+
+                self.request_timeout = 5.0  # 5 segundos de timeout
+                print(f"Timeout configurado: {self.request_timeout}s")
                 
             except Exception as model_error:
                 print(f"Erro ao listar modelos: {model_error}")
@@ -207,29 +210,32 @@ class GeminiService:
                 for ctx in relevant_contexts
             ])
             
-            # Construir o prompt para o Gemini (mais enxuto)
+            # Construir o prompt para o Gemini (mais enxuto)                       
             prompt = f"""
             Você é um assistente de IA chamado {agent_name}.
             
             CONTEXTO:
             {context_text}
             
-            Com base apenas no contexto acima, responda à seguinte pergunta:
+            INSTRUÇÕES IMPORTANTES:
+            1. Responda apenas com base no contexto fornecido acima.
+            2. Se a pergunta não puder ser respondida com as informações do contexto, diga "Este assunto deve ser direcionado ao setor responsável, pois não tenho informações suficientes a respeito."
+            3. Não invente informações ou use conhecimento externo ao contexto.
+            4. Responda em português do Brasil de forma natural e conversacional.
             
             Pergunta: {question}
-            
-            Se a resposta não estiver no contexto, responda educadamente que não possui essa informação.
-            Responda em português do Brasil de forma natural e conversacional.
             """
             
             print(f"Enviando prompt para o modelo {self.model_name}")
             
-            # Tentar gerar resposta com parâmetros de geração mais econômicos
+            # OTIMIZAÇÃO: Reduzir temperatura e tokens para resposta mais rápida
             completion = self.model.generate_content(
                 prompt,
                 generation_config={
-                    "temperature": 0.2,
-                    "max_output_tokens": 200,  # Limitar tamanho da resposta
+                    "temperature": 0.1,  # Valor menor = mais determinístico e rápido
+                    "max_output_tokens": 150,  # Reduzir para respostas mais curtas e rápidas
+                    "top_p": 0.8,  # Limitar diversidade para respostas mais rápidas
+                    "top_k": 20,   # Limitar número de tokens considerados
                 }
             )
             
@@ -266,10 +272,18 @@ class GeminiService:
                 'answer': 'Ocorreu um erro ao processar sua pergunta. Tente novamente mais tarde.'
             }
     
-    def _find_relevant_contexts(self, contexts, question, limit=3):
+    def _find_relevant_contexts(self, contexts, question, limit=2):  # Reduzir de 3 para 2
         """Encontra os contextos mais relevantes para uma pergunta"""
-        question_words = set(word.lower() for word in question.split() if len(word) > 3)
+        context_cache_key = f"relevant_contexts_{hash(question)}"
+        cached_contexts = cache.get(context_cache_key)
+        if cached_contexts:
+            print("Usando contextos relevantes do cache")
+            return cached_contexts
         
+        # Otimização: processamento mais eficiente de palavras-chave
+        question_words = set(word.lower() for word in question.split() 
+                            if len(word) > 3 and word.lower() not in 
+                            {'como', 'qual', 'quem', 'onde', 'quando', 'para', 'sobre'})        
         scored_contexts = []
         for ctx in contexts:
             score = 0
@@ -287,7 +301,9 @@ class GeminiService:
         
         # Ordenar por pontuação (maior primeiro) e pegar os primeiros 'limit'
         sorted_contexts = sorted(scored_contexts, key=lambda x: x[1], reverse=True)
-        return [ctx for ctx, _ in sorted_contexts[:limit]]
+        result = [ctx for ctx, _ in sorted_contexts[:limit]]
+        cache.set(context_cache_key, result, 60 * 60 * 24)  # 24 horas
+        return result
     
     def _generate_fallback_response(self, agent_id, question, contexts=None):
         """Método para gerar respostas de fallback quando a API falha"""
