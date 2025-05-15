@@ -10,6 +10,8 @@ from django.conf import settings
 from Contexto.models import Contexto
 from Agente.models import Agente
 from django.core.cache import cache
+import random
+from datetime import datetime
 
 class GeminiService:
     def __init__(self):
@@ -29,27 +31,135 @@ class GeminiService:
                 print("ALERTA: GEMINI_API_KEY não encontrada em settings.py")
                 self.api_configured = False
                 return
-                
+            
             # Configuração da API
             genai.configure(api_key=settings.GEMINI_API_KEY)
             
-            # ALTERADO: Usar o modelo Gemma em vez do Gemini
-            if self.is_deploy_environment:
-                # Em produção, usar Gemma 2B (mais leve)
-                self.model_name = "models/gemma-2b-it"
-            else:
-                # Em desenvolvimento, pode usar o modelo maior
-                self.model_name = "models/gemma-7b-it"
+            # Lista modelos disponíveis para diagnóstico
+            try:
+                if not self.is_deploy_environment:
+                    print("Listando modelos disponíveis na API Gemini:")
+                    for model in genai.list_models():
+                        print(f"- Modelo: {model.name}")
+                
+                # Em produção, usar um modo econômico que limita chamadas
+                if self.is_deploy_environment:
+                    # Em ambiente de produção, usar principalmente o fallback
+                    # e definir uma probabilidade baixa de usar a API real
+                    self.api_usage_probability = 0.10  # Apenas 10% das solicitações usam a API
+                    print(f"Modo econômico ativado: {int(self.api_usage_probability * 100)}% de uso da API")
+                    self.model_name = "gemini-1.5-flash"  # Modelo mais econômico
+                    
+                    # Cache de longa duração em produção
+                    self.cache_ttl = 60 * 60 * 24 * 7  # 7 dias
+                    
+                else:
+                    # Em ambiente de desenvolvimento, usar a API normalmente
+                    self.api_usage_probability = 1.0  # 100% das solicitações
+                    
+                    # Detectar modelo disponível
+                    model_names = [m.name for m in genai.list_models()]
+                    
+                    # Prioridades de modelo
+                    if any("gemini-1.5-pro" in name for name in model_names):
+                        self.model_name = "gemini-1.5-pro"
+                    elif any("gemini-1.0-pro" in name for name in model_names):
+                        self.model_name = "gemini-1.0-pro"
+                    elif any("gemini-pro" in name for name in model_names):
+                        self.model_name = "gemini-pro"
+                    else:
+                        # Usar o primeiro modelo que suporta generateContent
+                        for model in genai.list_models():
+                            if hasattr(model, "supported_generation_methods") and "generateContent" in model.supported_generation_methods:
+                                self.model_name = model.name
+                                break
+                        else:
+                            raise ValueError("Nenhum modelo compatível encontrado")
+                    
+                    # Cache curto em desenvolvimento
+                    self.cache_ttl = 60 * 30  # 30 minutos
+                
+                print(f"Usando modelo: {self.model_name}")
+                self.model = genai.GenerativeModel(self.model_name)
+                
+            except Exception as model_error:
+                print(f"Erro ao listar modelos: {model_error}")
+                # Tentar usar o modelo padrão como fallback
+                self.model_name = "gemini-1.5-flash"
+                print(f"Tentando usar modelo padrão: {self.model_name}")
+                self.model = genai.GenerativeModel(self.model_name)
             
-            print(f"Usando modelo: {self.model_name}")
-            self.model = genai.GenerativeModel(self.model_name)
             self.api_configured = True
-            print("Serviço Gemma inicializado com sucesso")
+            print("Serviço Gemini inicializado com sucesso")
             
         except Exception as e:
             print(f"Erro ao inicializar GeminiService: {e}")
             traceback.print_exc()
             self.api_configured = False
+    
+    def enhance_response(self, original_response, question, agent_name=None):
+        """
+        Melhora a resposta original usando o Gemini para torná-la mais conversacional
+        """
+        if not self.api_configured:
+            print("API do Gemini não configurada. Retornando resposta original.")
+            return original_response
+        
+        # Em produção, usar cache e economizar API
+        if self.is_deploy_environment:
+            # Gerar um cache_key baseado na pergunta e resposta
+            cache_key = f"enhance_{hash(question + original_response)}"
+            cached_response = cache.get(cache_key)
+            
+            if cached_response:
+                print("Usando resposta aprimorada do cache")
+                return cached_response
+            
+            # Aplicar probabilidade de uso da API para economizar
+            if random.random() > self.api_usage_probability:
+                print("Modo econômico: pulando aprimoramento via API")
+                return original_response
+        
+        try:
+            # Construir o prompt para o Gemini
+            prompt = f"""
+            Você é um assistente de IA chamado {agent_name or 'Assistente'}.
+            
+            A seguinte pergunta foi feita: "{question}"
+            
+            A resposta técnica é: "{original_response}"
+            
+            Por favor, reescreva esta resposta de uma maneira mais conversacional e natural.
+            Mantenha toda a informação técnica, mas adicione elementos de linguagem natural.
+            Responda em português do Brasil.
+            """
+            
+            # Gerar resposta aprimorada com o Gemini
+            completion = self.model.generate_content(
+                prompt,
+                generation_config={
+                    "temperature": 0.2,
+                    "max_output_tokens": 200,  # Limitar tamanho da resposta
+                }
+            )
+            
+            # Verificar e retornar a resposta
+            if hasattr(completion, 'text'):
+                enhanced_response = completion.text.strip()
+                
+                # Guardar no cache para uso futuro
+                if self.is_deploy_environment:
+                    cache.set(cache_key, enhanced_response, self.cache_ttl)
+                
+                return enhanced_response
+            else:
+                print(f"Formato de resposta inesperado: {type(completion)}")
+                return original_response
+                
+        except Exception as e:
+            print(f"Erro ao melhorar resposta com Gemini: {e}")
+            traceback.print_exc()
+            return original_response
 
     def answer_question(self, agent_id, question):
         """Método principal com cache e proteção adicional"""
@@ -64,7 +174,12 @@ class GeminiService:
         # Verifica se o API está configurada
         if not self.api_configured:
             return self._generate_fallback_response(agent_id, question)
-                       
+        
+        # Em produção, aplicar a probabilidade para economizar API
+        if self.is_deploy_environment and random.random() > self.api_usage_probability:
+            print("Modo econômico: usando fallback para economizar API")
+            return self._generate_fallback_response(agent_id, question)
+            
         try:
             # Busca informações do agente
             try:
@@ -94,15 +209,17 @@ class GeminiService:
             
             # Construir o prompt para o Gemini (mais enxuto)
             prompt = f"""
-            Você é {agent_name}.
+            Você é um assistente de IA chamado {agent_name}.
             
             CONTEXTO:
             {context_text}
             
-            Responda à pergunta abaixo usando apenas o contexto acima:
+            Com base apenas no contexto acima, responda à seguinte pergunta:
+            
             Pergunta: {question}
             
-            Se não souber, apenas diga que não tem essa informação.
+            Se a resposta não estiver no contexto, responda educadamente que não possui essa informação.
+            Responda em português do Brasil de forma natural e conversacional.
             """
             
             print(f"Enviando prompt para o modelo {self.model_name}")
@@ -127,8 +244,8 @@ class GeminiService:
                     'in_scope': True
                 }
                 
-                # Armazenar em cache por 1 hora
-                cache.set(cache_key, result, 60 * 60)
+                # Armazenar em cache por mais tempo em produção
+                cache.set(cache_key, result, self.cache_ttl)
                 
                 return result
             else:
@@ -186,26 +303,50 @@ class GeminiService:
                     'answer': 'Não tenho informações suficientes para responder a essa pergunta.'
                 }
             
-            # Reuso do método para encontrar contextos relevantes
-            relevant_contexts = self._find_relevant_contexts(contexts, question, limit=1)
+            # Utiliza a abordagem do código fornecido que corrige problemas de escopo
+            keywords = [w.lower() for w in question.split() if len(w) > 3]
             
-            if relevant_contexts:
-                best_match = relevant_contexts[0]
-                return {
-                    'success': True,
-                    'fallback': True,
-                    'answer': best_match.resposta,
-                    'confidence': 0.7,
-                    'in_scope': True
-                }
+            best_matches = []
+            for ctx in contexts:
+                matches = 0
+                for keyword in keywords:
+                    if keyword in ctx.pergunta.lower() or keyword in ctx.resposta.lower():
+                        matches += 1
+                
+                if matches > 0:
+                    best_matches.append((ctx, matches))
             
-            # Fallback final - retornar qualquer contexto
-            random_ctx = contexts.first()
+            # Se encontrou correspondências
+            if best_matches:
+                # Ordenar pelo número de correspondências (maior primeiro)
+                best_matches.sort(key=lambda x: x[1], reverse=True)
+                best_ctx = best_matches[0][0]
+                
+                # Verificar se é uma boa correspondência
+                if len(keywords) > 0 and best_matches[0][1] >= len(keywords) / 2:
+                    return {
+                        'success': True,
+                        'fallback': True,
+                        'answer': best_ctx.resposta,
+                        'confidence': 0.7,
+                        'in_scope': True
+                    }
+                else:
+                    return {
+                        'success': True,
+                        'fallback': True,
+                        'answer': f"Com base no que sei: {best_ctx.resposta}",
+                        'confidence': 0.5,
+                        'in_scope': False
+                    }
+            
+            # Fallback final - retornar um contexto aleatório ou o primeiro
+            random_ctx = random.choice(list(contexts)) if contexts.count() > 1 else contexts.first()
             return {
                 'success': True,
                 'fallback': True,
                 'answer': f"Com base no que sei: {random_ctx.resposta}",
-                'confidence': 0.5,
+                'confidence': 0.3,
                 'in_scope': False
             }
             
