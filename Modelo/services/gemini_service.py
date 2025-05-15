@@ -33,16 +33,18 @@ class GeminiService:
             # Configuração da API
             genai.configure(api_key=settings.GEMINI_API_KEY)
             
-            # IMPORTANTE: No deploy, SEMPRE usar o modelo mais leve
+            # ALTERADO: Usar o modelo Gemma em vez do Gemini
             if self.is_deploy_environment:
-                self.model_name = "gemini-1.5-flash"  # Modelo mais leve em produção
+                # Em produção, usar Gemma 2B (mais leve)
+                self.model_name = "models/gemma-2b-it"
             else:
-                self.model_name = "gemini-1.5-flash"  # Mesmo modelo em dev
+                # Em desenvolvimento, pode usar o modelo maior
+                self.model_name = "models/gemma-7b-it"
             
             print(f"Usando modelo: {self.model_name}")
             self.model = genai.GenerativeModel(self.model_name)
             self.api_configured = True
-            print("Serviço Gemini inicializado com sucesso")
+            print("Serviço Gemma inicializado com sucesso")
             
         except Exception as e:
             print(f"Erro ao inicializar GeminiService: {e}")
