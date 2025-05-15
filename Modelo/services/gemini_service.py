@@ -1,9 +1,15 @@
-import google.generativeai as genai
+try:
+    import google.generativeai as genai
+except ImportError:
+    print("AVISO: Biblioteca google.generativeai não encontrada. Usando modo fallback.")
+    genai = None
+
 import traceback
 import os
 from django.conf import settings
 from Contexto.models import Contexto
 from Agente.models import Agente
+from django.core.cache import cache
 
 class GeminiService:
     def __init__(self):
@@ -12,6 +18,12 @@ class GeminiService:
             self.is_deploy_environment = os.environ.get('RENDER', '').lower() == 'true'
             print(f"Ambiente de deploy? {'Sim' if self.is_deploy_environment else 'Não'}")
             
+            # Se genai não está disponível, desabilita o serviço
+            if genai is None:
+                print("Modo fallback ativado: API Gemini não disponível")
+                self.api_configured = False
+                return
+                
             # Verificação de segurança para a chave API
             if not hasattr(settings, 'GEMINI_API_KEY') or not settings.GEMINI_API_KEY:
                 print("ALERTA: GEMINI_API_KEY não encontrada em settings.py")
@@ -21,20 +33,11 @@ class GeminiService:
             # Configuração da API
             genai.configure(api_key=settings.GEMINI_API_KEY)
             
-            # Lista todos os modelos disponíveis (para debug)
-            try:
-                models = genai.list_models()
-                print("Listando modelos disponíveis na API Gemini:")
-                for model in models:
-                    print(f"- Modelo: {model.name}")
-            except Exception as e:
-                print(f"Erro ao listar modelos: {e}")
-            
             # IMPORTANTE: No deploy, SEMPRE usar o modelo mais leve
             if self.is_deploy_environment:
                 self.model_name = "gemini-1.5-flash"  # Modelo mais leve em produção
             else:
-                self.model_name = "gemini-1.5-flash"  # Temporariamente usar o mesmo modelo leve em dev também
+                self.model_name = "gemini-1.5-flash"  # Mesmo modelo em dev
             
             print(f"Usando modelo: {self.model_name}")
             self.model = genai.GenerativeModel(self.model_name)
@@ -47,18 +50,19 @@ class GeminiService:
             self.api_configured = False
 
     def answer_question(self, agent_id, question):
-        """Método principal com proteção adicional"""
-        # Contadores de erro para telemetria
-        error_count = getattr(self, '_error_count', 0)
+        """Método principal com cache e proteção adicional"""
+        # Verificar se a resposta está em cache
+        cache_key = f"gemini_response_{agent_id}_{hash(question)}"
+        cached_response = cache.get(cache_key)
         
+        if cached_response:
+            print(f"Usando resposta em cache para agente {agent_id}")
+            return cached_response
+            
         # Verifica se o API está configurada
         if not self.api_configured:
-            return {
-                'success': False,
-                'error': 'API Gemini não configurada',
-                'answer': "Desculpe, o serviço de IA não está disponível no momento."
-            }           
-            
+            return self._generate_fallback_response(agent_id, question)
+                       
         try:
             # Busca informações do agente
             try:
@@ -79,16 +83,12 @@ class GeminiService:
                     'answer': 'Desculpe, não tenho informações suficientes para responder a essa pergunta.'
                 }
             
-            # Prepara o contexto para o prompt (limitando o tamanho para reduzir tokens)
-            context_data = []
-            for ctx in contexts:
-                context_data.append(f"Pergunta: {ctx.pergunta}\nResposta: {ctx.resposta}")
-            
-            # Limitar o número de contextos para economizar tokens
-            if len(context_data) > 3:
-                context_data = context_data[:3]  # Usar apenas os 3 primeiros contextos
-                
-            context_text = "\n\n".join(context_data)
+            # Limitar o número de contextos para reduzir tokens
+            relevant_contexts = self._find_relevant_contexts(contexts, question, limit=3)
+            context_text = "\n\n".join([
+                f"Pergunta: {ctx.pergunta}\nResposta: {ctx.resposta}" 
+                for ctx in relevant_contexts
+            ])
             
             # Construir o prompt para o Gemini (mais enxuto)
             prompt = f"""
@@ -117,22 +117,24 @@ class GeminiService:
             if hasattr(completion, 'text'):
                 answer = completion.text.strip()
                 print(f"Resposta do Gemini recebida com sucesso ({len(answer)} caracteres)")
-                # Resetar contador de erros
-                self._error_count = 0
-                return {
+                
+                result = {
                     'success': True,
                     'answer': answer,
                     'confidence': 0.95,
                     'in_scope': True
                 }
+                
+                # Armazenar em cache por 1 hora
+                cache.set(cache_key, result, 60 * 60)
+                
+                return result
             else:
                 print(f"Formato inesperado de resposta do Gemini: {completion}")
                 return self._generate_fallback_response(agent_id, question, contexts)
             
         except Exception as e:
-            # Incrementar contador de erros
-            self._error_count = error_count + 1
-            print(f"Erro ao gerar resposta com Gemini ({self._error_count}): {e}")
+            print(f"Erro ao gerar resposta com Gemini: {e}")
             traceback.print_exc()
             
             # Se for erro de quota, use respostas do contexto diretamente
@@ -144,6 +146,29 @@ class GeminiService:
                 'error': str(e),
                 'answer': 'Ocorreu um erro ao processar sua pergunta. Tente novamente mais tarde.'
             }
+    
+    def _find_relevant_contexts(self, contexts, question, limit=3):
+        """Encontra os contextos mais relevantes para uma pergunta"""
+        question_words = set(word.lower() for word in question.split() if len(word) > 3)
+        
+        scored_contexts = []
+        for ctx in contexts:
+            score = 0
+            ctx_words = set(word.lower() for word in ctx.pergunta.split() if len(word) > 3)
+            # Calcular palavras em comum
+            common_words = question_words.intersection(ctx_words)
+            score = len(common_words)
+            
+            # Verificar palavras na resposta também
+            for word in question_words:
+                if word in ctx.resposta.lower():
+                    score += 0.5
+                    
+            scored_contexts.append((ctx, score))
+        
+        # Ordenar por pontuação (maior primeiro) e pegar os primeiros 'limit'
+        sorted_contexts = sorted(scored_contexts, key=lambda x: x[1], reverse=True)
+        return [ctx for ctx, _ in sorted_contexts[:limit]]
     
     def _generate_fallback_response(self, agent_id, question, contexts=None):
         """Método para gerar respostas de fallback quando a API falha"""
@@ -158,38 +183,12 @@ class GeminiService:
                     'fallback': True,
                     'answer': 'Não tenho informações suficientes para responder a essa pergunta.'
                 }
-                
-            # Busca por palavras-chave (mais de 3 letras)
-            keywords = [w.lower() for w in question.split() if len(w) > 3]
             
-            # Se não houver palavras-chave significativas, usar resposta genérica
-            if not keywords:
-                random_ctx = contexts.first()
-                return {
-                    'success': True,
-                    'fallback': True,
-                    'answer': f"Aqui está uma informação que pode ajudar: {random_ctx.resposta}"
-                }
+            # Reuso do método para encontrar contextos relevantes
+            relevant_contexts = self._find_relevant_contexts(contexts, question, limit=1)
             
-            # Buscar contexto mais relevante
-            best_match = None
-            best_score = 0
-            
-            for ctx in contexts:
-                # Calcular pontuação de relevância
-                score = 0
-                for keyword in keywords:
-                    if keyword in ctx.pergunta.lower():
-                        score += 2  # Maior peso para match na pergunta
-                    if keyword in ctx.resposta.lower():
-                        score += 1
-                
-                if score > best_score:
-                    best_score = score
-                    best_match = ctx
-            
-            # Se encontrou alguma correspondência
-            if best_match and best_score > 0:
+            if relevant_contexts:
+                best_match = relevant_contexts[0]
                 return {
                     'success': True,
                     'fallback': True,
