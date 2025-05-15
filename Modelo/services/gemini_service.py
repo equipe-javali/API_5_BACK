@@ -13,6 +13,7 @@ from django.core.cache import cache
 import random
 from datetime import datetime
 
+
 class GeminiService:
     def __init__(self):
         try:
@@ -25,71 +26,51 @@ class GeminiService:
                 print("Modo fallback ativado: API Gemini não disponível")
                 self.api_configured = False
                 return
-                
-            # Verificação de segurança para a chave API
-            if not hasattr(settings, 'GEMINI_API_KEY') or not settings.GEMINI_API_KEY:
-                print("ALERTA: GEMINI_API_KEY não encontrada em settings.py")
+                    
+            # Verificação de segurança para a chave API - Agora verifica também em os.environ
+            self.api_key = os.environ.get('GEMINI_API_KEY') or getattr(settings, 'GEMINI_API_KEY', '')
+            
+            if not self.api_key:
+                print("ALERTA: GEMINI_API_KEY não encontrada")
                 self.api_configured = False
                 return
-            
+                
             # Configuração da API
-            genai.configure(api_key=settings.GEMINI_API_KEY)
+            genai.configure(api_key=self.api_key)
             
-            # Lista modelos disponíveis para diagnóstico
+            # Usar o modelo especificado em variável de ambiente, se existir
+            self.model_name = os.environ.get('GEMINI_MODEL') or getattr(settings, 'GEMINI_MODEL', None)
+            print(f"- Modelo solicitado: {self.model_name or 'não especificado'}")
+            
+            # Verificar se o modelo solicitado existe
             try:
-                if not self.is_deploy_environment:
-                    print("Listando modelos disponíveis na API Gemini:")
-                    for model in genai.list_models():
-                        print(f"- Modelo: {model.name}")
-                
-                # Em produção, usar um modo econômico que limita chamadas
-                if self.is_deploy_environment:
-                   
-                    self.api_usage_probability = 0.50  # Apenas 50% das solicitações usam a API
-                    print(f"Modo econômico ativado: {int(self.api_usage_probability * 100)}% de uso da API")
-                    self.model_name = "gemini-1.5-flash"  # Modelo mais econômico
-                    
-                    # Cache de longa duração em produção
-                    self.cache_ttl = 60 * 60 * 24 * 7 * 14  # 7 dias
-                    
+                modelos_disponiveis = [m.name for m in genai.list_models()]
+                if self.model_name and any(self.model_name in m for m in modelos_disponiveis):
+                    print(f"Usando modelo solicitado: {self.model_name}")
                 else:
-                    # Em ambiente de desenvolvimento, usar a API normalmente
-                    self.api_usage_probability = 1.0  # 100% das solicitações
-                    
-                    # Detectar modelo disponível
-                    model_names = [m.name for m in genai.list_models()]
-                    
-                    # Prioridades de modelo
-                    if any("gemini-1.5-pro" in name for name in model_names):
+                    # Se o modelo solicitado não existir, usar a lógica de seleção
+                    if self.model_name:
+                        print(f"Modelo '{self.model_name}' não disponível. Selecionando alternativa...")
+                        
+                    # Seleção de modelo alternativo
+                    if any("gemini-2.0" in name for name in modelos_disponiveis):
+                        self.model_name = next(m for m in modelos_disponiveis if "gemini-2.0" in m)
+                    elif any("gemini-1.5-flash" in name for name in modelos_disponiveis):
+                        self.model_name = "gemini-1.5-flash"
+                    elif any("gemini-1.5-pro" in name for name in modelos_disponiveis):
                         self.model_name = "gemini-1.5-pro"
-                    elif any("gemini-1.0-pro" in name for name in model_names):
-                        self.model_name = "gemini-1.0-pro"
-                    elif any("gemini-pro" in name for name in model_names):
-                        self.model_name = "gemini-pro"
                     else:
-                        # Usar o primeiro modelo que suporta generateContent
-                        for model in genai.list_models():
-                            if hasattr(model, "supported_generation_methods") and "generateContent" in model.supported_generation_methods:
-                                self.model_name = model.name
-                                break
-                        else:
-                            raise ValueError("Nenhum modelo compatível encontrado")
-                    
-                    # Cache curto em desenvolvimento
-                    self.cache_ttl = 60 * 30  # 30 minutos
+                        self.model_name = modelos_disponiveis[0]
+                        
+                    print(f"Usando modelo alternativo: {self.model_name}")
+            except Exception as e:
+                print(f"Erro ao listar modelos: {e}")
+                self.model_name = "gemini-1.5-flash"  # Modelo padrão como fallback
                 
-                print(f"Usando modelo: {self.model_name}")
-                self.model = genai.GenerativeModel(self.model_name)
-
-                self.request_timeout = 10.0  # 5 segundos de timeout
-                print(f"Timeout configurado: {self.request_timeout}s")
+            # Inicializar o modelo
+            print(f"Usando modelo: {self.model_name}")
+            self.model = genai.GenerativeModel(self.model_name)
                 
-            except Exception as model_error:
-                print(f"Erro ao listar modelos: {model_error}")
-                # Tentar usar o modelo padrão como fallback
-                self.model_name = "gemini-1.5-flash"
-                print(f"Tentando usar modelo padrão: {self.model_name}")
-                self.model = genai.GenerativeModel(self.model_name)
             
             self.api_configured = True
             print("Serviço Gemini inicializado com sucesso")
@@ -98,6 +79,8 @@ class GeminiService:
             print(f"Erro ao inicializar GeminiService: {e}")
             traceback.print_exc()
             self.api_configured = False
+    
+    # Substitua o método enhance_response existente pelo seguinte:
     
     def enhance_response(self, original_response, question, agent_name=None):
         """
@@ -123,30 +106,35 @@ class GeminiService:
                 return original_response
         
         try:
-            # Construir o prompt para o Gemini            
+            # Analisar o tom da pergunta para adaptar a resposta
+            is_formal = self._analyze_question_tone(question)
+            tone = "formal e respeitoso" if is_formal else "amigável e descontraído"
             
+            # Construir o prompt para o Gemini
             prompt = f"""
-            Você é um assistente de IA chamado {agent_name or 'Assistente'}.
+            Você é {agent_name or 'Assistente'}.
+            Pergunta: "{question}"
+            Resposta técnica: "{original_response}"
             
-            A seguinte pergunta foi feita: "{question}"
-            
-            A resposta técnica é: "{original_response}"
-            
-            INSTRUÇÕES:
-            1. Reescreva esta resposta em tom conversacional e natural, mantendo TODAS as informações técnicas originais.
-            2. Adicione saudações amigáveis e elementos de diálogo natural.
-            3. NÃO adicione informações que não estavam na resposta original.
-            4. Use linguagem cordial e acessível, como se estivesse em uma conversa real.
-            5. Responda em português do Brasil com fluidez e clareza.
-            6. Se a resposta original menciona limitações de conhecimento, mantenha essa informação mas expresse de forma empática.
+            Reescreva em tom {tone}, mantendo TODAS as informações técnicas originais.
+            Use no máximo 200 caracteres.
             """
+            
+            # Reduzir max_output_tokens
+            completion = self.model.generate_content(
+                prompt,
+                generation_config={
+                    "temperature": 0.3,  # Menor temperatura = menos tokens
+                    "max_output_tokens": 150,  # Reduzir máximo de tokens
+                }
+            )
             
             # Gerar resposta aprimorada com o Gemini
             completion = self.model.generate_content(
                 prompt,
                 generation_config={
-                    "temperature": 0.2,
-                    "max_output_tokens": 200,  # Limitar tamanho da resposta
+                    "temperature": 0.4,  # Aumentado para mais variações
+                    "max_output_tokens": 300,  # Um pouco mais para dar espaço a elementos conversacionais
                 }
             )
             
@@ -167,6 +155,34 @@ class GeminiService:
             print(f"Erro ao melhorar resposta com Gemini: {e}")
             traceback.print_exc()
             return original_response
+            
+    def _analyze_question_tone(self, question):
+        """Analisa o tom da pergunta para determinar se deve usar linguagem formal ou informal"""
+        # Palavras/expressões que indicam formalidade
+        formal_indicators = ['por favor', 'poderia', 'seria possível', 'gostaria', 'por gentileza', 
+                             'solicito', 'necessito', 'requeiro', 'preciso', 'agradeço']
+        
+        # Palavras/expressões que indicam informalidade
+        informal_indicators = ['oi', 'olá', 'e aí', 'beleza', 'cara', 'mano', 'valeu', 'blz', 
+                              'falou', 'firmeza', 'tranquilo', 'fala aí']
+        
+        question_lower = question.lower()
+        
+        # Contar indicadores em cada categoria
+        formal_count = sum(1 for word in formal_indicators if word in question_lower)
+        informal_count = sum(1 for word in informal_indicators if word in question_lower)
+        
+        # Detecção de perguntas diretas/curtas (tendem a ser mais informais)
+        is_short_question = len(question.split()) < 6
+        
+        # Por padrão, usamos tom formal para dúvidas técnicas/profissionais
+        is_formal = True
+        
+        # Ajustar com base nos indicadores encontrados
+        if informal_count > formal_count or (is_short_question and formal_count == 0):
+            is_formal = False
+            
+        return is_formal
 
     def answer_question(self, agent_id, question):
         """Método principal com cache e proteção adicional"""
@@ -217,16 +233,24 @@ class GeminiService:
             # Construir o prompt para o Gemini (mais enxuto)                       
 
             prompt = f"""
-            Você é {agent_name}, um assistente de IA amigável e eficiente.
+            Você é {agent_name}, um assistente de IA amigável, empático e adaptativo.
 
             CONTEXTO AUTORIZADO (USE APENAS ESTAS INFORMAÇÕES):
             {context_text}
-           
+
+            INSTRUÇÕES IMPORTANTES:
+            1. Responda APENAS com base nas informações do contexto acima.
+            2. Se a informação não estiver no contexto fornecido, responda educadamente que não tem essa informação específica e sugira contatar o setor responsável.
+            3. NÃO invente ou adicione informações de seu conhecimento geral.
+            4. ANALISE O TOM DA PERGUNTA e adapte seu estilo de resposta:
+            - Se a pergunta for formal/profissional, responda em tom educado e respeitoso
+            - Se a pergunta for casual/informal, responda em tom amigável 
+            5. Use linguagem CONVERSACIONAL NATURAL, como um atendente real:
+            - Adicione saudações apropriadas
+            - Expresse empatia quando relevante                        
+            6. Mantenha suas respostas concisas, porém completas e informativas.
 
             Pergunta do usuário: {question}
-           
-             Se a resposta não estiver no contexto, responda educadamente que não possui essa informação e que a pessoa deverá contatar o setor responsável.
-            Responda em português do Brasil de forma natural e conversacional.
             """
                 
             print(f"Enviando prompt para o modelo {self.model_name}")
@@ -347,12 +371,19 @@ class GeminiService:
             # Busca simples por palavras-chave no contexto
             if contexts is None:
                 contexts = Contexto.objects.filter(Agente_id=agent_id)
-                
+                    
             if contexts.count() == 0:
+                # Resposta mais conversacional sem contexto
+                respostas_sem_contexto = [
+                    'Olá! Infelizmente não tenho informações suficientes sobre esse assunto. Recomendo entrar em contato com o setor responsável para obter ajuda especializada.',
+                    'Desculpe, mas esse tema específico não está na minha base de conhecimento. O setor responsável poderá te ajudar melhor!',
+                    'Hmm, parece que ainda não tenho dados sobre isso. Que tal conversar diretamente com nosso atendimento para esclarecer essa dúvida?',
+                    'Este assunto deve ser direcionado ao setor responsável, pois não tenho informações suficientes a respeito. Posso ajudar com algo mais?'
+                ]
                 return {
                     'success': True,
                     'fallback': True,
-                    'answer': 'Este assunto deve ser direcionado ao setor responsável, pois não tenho informações suficientes a respeito.'
+                    'answer': random.choice(respostas_sem_contexto)
                 }
             
             # Utiliza a abordagem do código fornecido que corrige problemas de escopo
@@ -379,44 +410,59 @@ class GeminiService:
                     best_matches.append((ctx, matches))
             
             # Se encontrou correspondências
-            if best_matches:
-                # Ordenar pelo número de correspondências (maior primeiro)
-                best_matches.sort(key=lambda x: x[1], reverse=True)
+            if best_matches and best_matches[0][1] >= (len(keywords) * 0.7):
                 best_ctx = best_matches[0][0]
                 
-                # ALTERAÇÃO CRUCIAL: Verificação mais rigorosa de correspondência
-                # Exigir no mínimo 70% de correspondência para responder
-                if len(keywords) > 0 and best_matches[0][1] >= (len(keywords) * 0.7):
-                    return {
-                        'success': True,
-                        'fallback': True,
-                        'answer': best_ctx.resposta,
-                        'confidence': 0.7,
-                        'in_scope': True
-                    }
-                else:
-                    # Se não tiver correspondência forte, NÃO responda
-                    return {
-                        'success': True,
-                        'fallback': True,
-                        'answer': 'Este assunto deve ser direcionado ao setor responsável, pois não tenho informações suficientes a respeito.',
-                        'confidence': 0.5,
-                        'in_scope': False
-                    }
+                # Adicionar elementos conversacionais à resposta
+                resposta_original = best_ctx.resposta
+                
+                # Adicionar início conversacional aleatório
+                inicios = [
+                    "Claro! ",
+                    "Posso ajudar com isso. ",
+                    "Sobre sua pergunta, ",
+                    "Tenho essa informação! ",
+                    ""  # Às vezes sem início para variar
+                ]
+                
+                # Adicionar fechamento conversacional aleatório
+                fechamentos = [
+                    " Espero ter ajudado!",
+                    " Posso esclarecer mais alguma coisa?",
+                    " Tem mais alguma dúvida sobre isso?",
+                    ""  # Às vezes sem fechamento para variar
+                ]
+                
+                resposta_conversacional = f"{random.choice(inicios)}{resposta_original}{random.choice(fechamentos)}"
+                
+                return {
+                    'success': True,
+                    'fallback': True,
+                    'answer': resposta_conversacional,
+                    'confidence': 0.7,
+                    'in_scope': True
+                }
             
-            # Fallback final - NÃO use contexto aleatório, recuse-se a responder
+            # Se não tiver correspondência forte
+            respostas_negativas = [
+                "Desculpe, mas não tenho informações específicas sobre isso. Recomendo contatar o setor responsável para obter essa orientação.",
+                "Essa pergunta está um pouco fora da minha área de conhecimento. O setor responsável poderá te ajudar melhor com isso!",
+                "Hmm, não tenho dados suficientes para responder adequadamente. Seria melhor consultar diretamente com o departamento especializado.",
+                "Este assunto deve ser direcionado ao setor responsável, pois não tenho informações suficientes a respeito. Posso ajudar com alguma outra questão?"
+            ]
+            
             return {
                 'success': True,
                 'fallback': True,
-                'answer': 'Este assunto deve ser direcionado ao setor responsável, pois não tenho informações suficientes a respeito.',
-                'confidence': 0.3,
+                'answer': random.choice(respostas_negativas),
+                'confidence': 0.5,
                 'in_scope': False
             }
-            
+                
         except Exception as fallback_error:
             print(f"Erro no fallback: {fallback_error}")
             return {
                 'success': False,
                 'error': str(fallback_error),
-                'answer': 'Este assunto deve ser direcionado ao setor responsável. Nosso serviço está temporariamente indisponível.'
+                'answer': 'Desculpe, estou com dificuldades técnicas no momento. Por favor, entre em contato com o setor responsável ou tente novamente mais tarde.'
             }
