@@ -82,7 +82,7 @@ class GeminiService:
                 print(f"Usando modelo: {self.model_name}")
                 self.model = genai.GenerativeModel(self.model_name)
 
-                self.request_timeout = 5.0  # 5 segundos de timeout
+                self.request_timeout = 10.0  # 5 segundos de timeout
                 print(f"Timeout configurado: {self.request_timeout}s")
                 
             except Exception as model_error:
@@ -124,7 +124,8 @@ class GeminiService:
                 return original_response
         
         try:
-            # Construir o prompt para o Gemini
+            # Construir o prompt para o Gemini            
+            
             prompt = f"""
             Você é um assistente de IA chamado {agent_name or 'Assistente'}.
             
@@ -132,9 +133,13 @@ class GeminiService:
             
             A resposta técnica é: "{original_response}"
             
-            Por favor, reescreva esta resposta de uma maneira mais conversacional e natural.
-            Mantenha toda a informação técnica, mas adicione elementos de linguagem natural.
-            Responda em português do Brasil.
+            INSTRUÇÕES:
+            1. Reescreva esta resposta em tom conversacional e natural, mantendo TODAS as informações técnicas originais.
+            2. Adicione saudações amigáveis e elementos de diálogo natural.
+            3. NÃO adicione informações que não estavam na resposta original.
+            4. Use linguagem cordial e acessível, como se estivesse em uma conversa real.
+            5. Responda em português do Brasil com fluidez e clareza.
+            6. Se a resposta original menciona limitações de conhecimento, mantenha essa informação mas expresse de forma empática.
             """
             
             # Gerar resposta aprimorada com o Gemini
@@ -211,34 +216,69 @@ class GeminiService:
             ])
             
             # Construir o prompt para o Gemini (mais enxuto)                       
+
             prompt = f"""
-            Você é um assistente de IA chamado {agent_name}.
-            
-            CONTEXTO:
+            Você é {agent_name}, um assistente de IA amigável e eficiente.
+
+            CONTEXTO AUTORIZADO (USE APENAS ESTAS INFORMAÇÕES):
             {context_text}
-            
+
             INSTRUÇÕES IMPORTANTES:
-            1. Responda apenas com base no contexto fornecido acima.
-            2. Se a pergunta não puder ser respondida com as informações do contexto, diga "Este assunto deve ser direcionado ao setor responsável, pois não tenho informações suficientes a respeito."
-            3. Não invente informações ou use conhecimento externo ao contexto.
-            4. Responda em português do Brasil de forma natural e conversacional.
-            
-            Pergunta: {question}
+            1. Responda APENAS com base nas informações do contexto acima.
+            2. Se a informação não estiver no contexto fornecido, diga: "Este assunto deve ser direcionado ao setor responsável, pois não tenho informações suficientes a respeito."
+            3. NÃO invente ou adicione informações de seu conhecimento geral.
+            4. Use um tom natural e conversacional, como se estivesse em um diálogo real.
+            5. Seja conciso e direto, mas mantenha um tom cordial e prestativo.
+            6. Inclua pequenas expressões conversacionais naturais quando adequado.
+            7. Responda em português do Brasil com linguagem acessível.
+
+            Pergunta do usuário: {question}
             """
-            
+                
             print(f"Enviando prompt para o modelo {self.model_name}")
             
-            # OTIMIZAÇÃO: Reduzir temperatura e tokens para resposta mais rápida
-            completion = self.model.generate_content(
-                prompt,
-                generation_config={
-                    "temperature": 0.1,  # Valor menor = mais determinístico e rápido
-                    "max_output_tokens": 150,  # Reduzir para respostas mais curtas e rápidas
-                    "top_p": 0.8,  # Limitar diversidade para respostas mais rápidas
-                    "top_k": 20,   # Limitar número de tokens considerados
-                }
-            )
-            
+                        
+            try:
+                # Adicionar tratamento específico de timeout
+                import asyncio
+                from concurrent.futures import TimeoutError
+                
+                try:
+                    start_time = datetime.now()
+                    
+                    # Configurar o modelo com timeout mais rigoroso
+                    completion = self.model.generate_content(
+                        prompt,
+                        generation_config={
+                            "temperature": 0.1,
+                            "max_output_tokens": 150,
+                            "top_p": 0.8,
+                            "top_k": 20,
+                        }
+                    )
+                    
+                    elapsed = (datetime.now() - start_time).total_seconds()
+                    if elapsed > self.request_timeout:
+                        print(f"Tempo de resposta excedeu limite: {elapsed:.2f}s > {self.request_timeout:.2f}s")
+                        return {
+                            'success': True,
+                            'fallback': True,
+                            'timeout': True,
+                            'answer': 'Este assunto deve ser direcionado ao setor responsável, pois não tenho informações suficientes a respeito.'
+                        }
+                        
+                except (TimeoutError, asyncio.TimeoutError, Exception) as timeout_error:
+                    print(f"Timeout ou erro ao gerar resposta: {timeout_error}")
+                    return {
+                        'success': True,
+                        'fallback': True,
+                        'timeout': True,
+                        'answer': 'Este assunto deve ser direcionado ao setor responsável, pois não tenho informações suficientes a respeito.'
+                    }
+            except Exception as e:
+                print(f"Erro ao configurar timeout: {e}")
+                return self._generate_fallback_response(agent_id, question, contexts)
+                    
             if hasattr(completion, 'text'):
                 answer = completion.text.strip()
                 print(f"Resposta do Gemini recebida com sucesso ({len(answer)} caracteres)")
@@ -305,6 +345,8 @@ class GeminiService:
         cache.set(context_cache_key, result, 60 * 60 * 24)  # 24 horas
         return result
     
+    # Modifique o método _generate_fallback_response nas linhas 306-366:
+    
     def _generate_fallback_response(self, agent_id, question, contexts=None):
         """Método para gerar respostas de fallback quando a API falha"""
         try:
@@ -316,18 +358,28 @@ class GeminiService:
                 return {
                     'success': True,
                     'fallback': True,
-                    'answer': 'Não tenho informações suficientes para responder a essa pergunta.'
+                    'answer': 'Este assunto deve ser direcionado ao setor responsável, pois não tenho informações suficientes a respeito.'
                 }
             
             # Utiliza a abordagem do código fornecido que corrige problemas de escopo
             keywords = [w.lower() for w in question.split() if len(w) > 3]
             
+            # Se não tiver palavras-chave significativas, não tente responder
+            if len(keywords) < 1:
+                return {
+                    'success': True,
+                    'fallback': True,
+                    'answer': 'Este assunto deve ser direcionado ao setor responsável, pois não tenho informações suficientes a respeito.'
+                }
+            
             best_matches = []
             for ctx in contexts:
                 matches = 0
                 for keyword in keywords:
-                    if keyword in ctx.pergunta.lower() or keyword in ctx.resposta.lower():
-                        matches += 1
+                    if keyword in ctx.pergunta.lower():
+                        matches += 2.0  # Dar maior peso a correspondências na pergunta
+                    elif keyword in ctx.resposta.lower():
+                        matches += 0.5
                 
                 if matches > 0:
                     best_matches.append((ctx, matches))
@@ -338,8 +390,9 @@ class GeminiService:
                 best_matches.sort(key=lambda x: x[1], reverse=True)
                 best_ctx = best_matches[0][0]
                 
-                # Verificar se é uma boa correspondência
-                if len(keywords) > 0 and best_matches[0][1] >= len(keywords) / 2:
+                # ALTERAÇÃO CRUCIAL: Verificação mais rigorosa de correspondência
+                # Exigir no mínimo 70% de correspondência para responder
+                if len(keywords) > 0 and best_matches[0][1] >= (len(keywords) * 0.7):
                     return {
                         'success': True,
                         'fallback': True,
@@ -348,20 +401,20 @@ class GeminiService:
                         'in_scope': True
                     }
                 else:
+                    # Se não tiver correspondência forte, NÃO responda
                     return {
                         'success': True,
                         'fallback': True,
-                        'answer': f"Com base no que sei: {best_ctx.resposta}",
+                        'answer': 'Este assunto deve ser direcionado ao setor responsável, pois não tenho informações suficientes a respeito.',
                         'confidence': 0.5,
                         'in_scope': False
                     }
             
-            # Fallback final - retornar um contexto aleatório ou o primeiro
-            random_ctx = random.choice(list(contexts)) if contexts.count() > 1 else contexts.first()
+            # Fallback final - NÃO use contexto aleatório, recuse-se a responder
             return {
                 'success': True,
                 'fallback': True,
-                'answer': f"Com base no que sei: {random_ctx.resposta}",
+                'answer': 'Este assunto deve ser direcionado ao setor responsável, pois não tenho informações suficientes a respeito.',
                 'confidence': 0.3,
                 'in_scope': False
             }
@@ -371,5 +424,5 @@ class GeminiService:
             return {
                 'success': False,
                 'error': str(fallback_error),
-                'answer': 'Nosso serviço está temporariamente indisponível. Por favor, tente novamente mais tarde.'
+                'answer': 'Este assunto deve ser direcionado ao setor responsável. Nosso serviço está temporariamente indisponível.'
             }
