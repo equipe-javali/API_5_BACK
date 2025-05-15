@@ -1,3 +1,4 @@
+import os
 from rest_framework import generics
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
@@ -10,6 +11,8 @@ from Agente.models import Agente
 from Usuario.models import Usuario
 from .models import Chat
 from Modelo.services.gemini_service import GeminiService
+
+IS_DEPLOY_ENVIRONMENT = os.getenv('RENDER', '').lower() == 'true'
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
@@ -103,8 +106,17 @@ def listar_chatbots(request):
     return Response(serializer.data)
 
 @api_view(["POST"])
+
 @permission_classes([AllowAny])
 def chat_enviar_mensagem(request):
+    # Adicione no início da função
+    if IS_DEPLOY_ENVIRONMENT:
+        return Response({
+            "status": "maintenance",
+            "message": "Serviço em manutenção. Tente novamente em 2 minutos."
+        }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+
     try:
         texto = request.data.get("texto")
         Chat_id = request.data.get("Chat_id")
