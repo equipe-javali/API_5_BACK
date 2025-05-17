@@ -37,6 +37,7 @@ urlpatterns = [
     path('api/', include('Chat.urls')),
     path('api/', include('Contexto.urls')),
     path('api/', include('Modelo.urls')),
+    path('api/', include('Dashboard.urls')),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),     
     path('swagger/', schema_view.with_ui('swagger', cache_timeout=0),name='swagger-ui'),
 ]
