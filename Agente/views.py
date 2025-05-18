@@ -8,6 +8,10 @@ from django.contrib.auth import get_user_model
 Usuario = get_user_model()
 from .serializers import AgenteSerializer
 
+from rest_framework import status
+from Chat.models import Chat, Mensagem
+from datetime import datetime, timedelta
+
 class AgenteCreateView(generics.CreateAPIView):
     queryset = Agente.objects.all()
     serializer_class = AgenteSerializer
@@ -127,3 +131,44 @@ def list_all_agents(request):
     agents = Agente.objects.all()
     serializer = AgenteSerializer(agents, many=True)
     return Response(serializer.data)
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def tempo_resposta_metricas(request):
+    """
+    Calcula o tempo médio de resposta dos agentes.
+    Filtros: agente_id, inicio, fim (datas)
+    """
+    agente_id = request.GET.get("agente_id")
+    inicio = request.GET.get("inicio")
+    fim = request.GET.get("fim")
+
+    mensagens = Mensagem.objects.all().order_by("Chat_id", "dataCriacao")
+
+    if agente_id:
+        chats = Chat.objects.filter(Agente_id=agente_id)
+        mensagens = mensagens.filter(Chat_id__in=chats)
+    if inicio:
+        mensagens = mensagens.filter(dataCriacao__gte=inicio)
+    if fim:
+        mensagens = mensagens.filter(dataCriacao__lte=fim)
+
+    tempos_resposta = []
+    mensagens = list(mensagens)
+
+    for i, msg in enumerate(mensagens):
+        if msg.usuario:  # mensagem do usuário
+            # Procura a próxima mensagem do agente no mesmo chat
+            for next_msg in mensagens[i+1:]:
+                if next_msg.Chat_id_id == msg.Chat_id_id and not next_msg.usuario:
+                    diff = (next_msg.dataCriacao - msg.dataCriacao).total_seconds()
+                    if diff >= 0:
+                        tempos_resposta.append(diff)
+                    break
+
+    tempo_medio = sum(tempos_resposta) / len(tempos_resposta) if tempos_resposta else 0
+
+    return Response({
+        "tempo_medio": round(tempo_medio, 2),
+        "quantidade": len(tempos_resposta)
+    })
