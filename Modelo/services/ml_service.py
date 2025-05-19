@@ -14,15 +14,19 @@ from Modelo.models import TrainedModel
 from Agente.models import Agente
 from .gemini_service import GeminiService
 
-# Ensure NLTK resources are downloaded
-nltk.download('rslp', quiet=True)
-nltk.download('punkt', quiet=True)
-nltk.download('stopwords', quiet=True)
-nltk.download('punkt_tab', quiet=True)
+# Configurar o diretório do NLTK 
+nltk_data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'nltk_data')
+if os.path.exists(nltk_data_dir):
+    nltk.data.path.append(nltk_data_dir)
 
-# Set up stemmer
-stemmer = RSLPStemmer()
-stop_words_stemmed_pt = [stemmer.stem(word) for word in stopwords.words('portuguese')]
+try:
+    # Set up stemmer
+    stemmer = RSLPStemmer()
+    stop_words_stemmed_pt = [stemmer.stem(word) for word in stopwords.words('portuguese')]
+except LookupError as e:
+    print(f"AVISO: Não foi possível carregar recursos NLTK: {e}")
+    # Fallback para uma lista básica de stopwords portuguesa
+    stop_words_stemmed_pt = ['a', 'ao', 'aos', 'aquela', 'aquelas', 'aquele', 'aqueles', 'as', 'até', 'com', 'como', 'da', 'das', 'de', 'do', 'dos', 'e', 'ela', 'elas', 'ele', 'eles', 'em', 'entre', 'era', 'eram', 'essa', 'essas', 'esse', 'esses', 'esta', 'estas', 'este', 'estes', 'eu', 'foi', 'foram', 'há', 'isso', 'isto', 'já', 'lhe', 'lhes', 'mais', 'mas', 'me', 'mesmo', 'meu', 'meus', 'minha', 'minhas', 'muito', 'na', 'nas', 'nem', 'no', 'nos', 'nós', 'nossa', 'nossas', 'nosso', 'nossos', 'num', 'numa', 'o', 'os', 'ou', 'para', 'pela', 'pelas', 'pelo', 'pelos', 'por', 'qual', 'quando', 'que', 'quem', 'são', 'se', 'seja', 'sem', 'seu', 'seus', 'só', 'sua', 'suas', 'também', 'te', 'tem', 'teu', 'teus', 'tu', 'tua', 'tuas', 'um', 'uma', 'você', 'vocês']
 
 def tokenize_and_stem(text):
     # Process text preserving hyphens
