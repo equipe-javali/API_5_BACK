@@ -38,16 +38,19 @@ class UsuarioSerializer(serializers.ModelSerializer):
         admin = validated_data.get("admin", None)
         permissoes = validated_data.get("permissoes", None) 
 
+        usuario = Usuario.objects.get(email=email)
+
         if nome not in [None, ""]:
-            instance.nome = nome
+            usuario.nome = nome
         if email not in [None, ""]:
-            instance.email = email
+            usuario.email = email
         if senha not in [None, ""]:
-            instance.senha = senha
+            usuario.set_password(senha)
         if admin not in [None, ""]:
-            instance.admin = admin
+            usuario.admin = admin
         if permissoes is not None:  
-            instance.permissoes.set(permissoes)
-        
-        instance.save()
-        return instance
+            usuario.permissoes.set(permissoes)
+
+        usuario.save()
+
+        return usuario

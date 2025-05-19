@@ -2,7 +2,7 @@ asgiref==3.8.1
 attrs==25.3.0
 backcall==0.2.0
 beautifulsoup4==4.13.4
-bleach==6.2.0
+bleach
 certifi==2025.1.31
 charset-normalizer==3.4.1
 click==8.1.8
