@@ -9,6 +9,7 @@ from drf_yasg.utils import swagger_auto_schema
 from .models import Usuario
 from .serializers import UsuarioSerializer
 from django.contrib.auth.models import User
+from django.utils.crypto import get_random_string
 from Agente.models import Agente
 import smtplib
 from email.mime.multipart import MIMEMultipart
@@ -258,7 +259,11 @@ def mandar_email_troca_senha(request):
         usuario = Usuario.objects.get(email=email)
     except Usuario.DoesNotExist:
         return Response({"message": "Usuário não encontrado."}, status=status.HTTP_404_NOT_FOUND)
-        
+    
+    senha = get_random_string(length=8)
+    usuario.set_password(senha)
+    usuario.save()
+
     load_dotenv()
     smtp_server = os.getenv("SMTP_SERVER")
     smtp_port = os.getenv("SMTP_PORT")
@@ -268,7 +273,7 @@ def mandar_email_troca_senha(request):
     from_addr = smtp_username
     to_addr = email
     subject = "Troca de senha"
-    body = "Esse é um email de troca de senha"
+    body = f"Troca de senha solicitada.\nSua nova senha é: {senha}\nCaso essa solicitção não foi feita por você, contate um adiministrador."
 
     msg = MIMEMultipart()
     msg["From"] = from_addr
@@ -285,7 +290,7 @@ def mandar_email_troca_senha(request):
 
         return Response({"message": "foi"}, status=status.HTTP_200_OK)
     except Exception as e:
-        return Response({"message": f"Não foi: {str(e)}"}, 
+        return Response({"message": f"Erro ao conectar com o servidor de envio de email: {str(e)}"}, 
                        status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     finally:
         email_server.quit()
