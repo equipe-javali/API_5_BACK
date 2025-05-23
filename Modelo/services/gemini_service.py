@@ -25,8 +25,8 @@ class GeminiService:
                 # Usar o modelo correto baseado nos disponíveis
                 model_names = [m.name for m in genai.list_models()]
                 
-                if any("gemini-1.5-pro" in name for name in model_names):
-                    self.model_name = "gemini-1.5-pro"
+                if any("gemini-2.0-flash-lite" in name for name in model_names):
+                    self.model_name = "gemini-2.0-flash-lite"
                 elif any("gemini-1.0-pro" in name for name in model_names):
                     self.model_name = "gemini-1.0-pro"
                 elif any("gemini-pro" in name for name in model_names):
