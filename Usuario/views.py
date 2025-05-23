@@ -10,7 +10,11 @@ from .models import Usuario
 from .serializers import UsuarioSerializer
 from django.contrib.auth.models import User
 from Agente.models import Agente
-
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from dotenv import load_dotenv
+import os
 
 class AdminCreateView(generics.CreateAPIView):
     queryset = Usuario.objects.all()
@@ -241,3 +245,42 @@ def atualizar_permissoes_usuario(request, pk):
     except Exception as e:
         return Response({"message": f"Erro ao atualizar permissões: {str(e)}"}, 
                        status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(["PUT"])
+@permission_classes([AllowAny])
+def mandar_email_troca_senha(request):
+    """
+    Endpoint específico para enviar um email com uma nova senha do usuário
+    """
+    email = request.data.get("email", "")
+        
+    load_dotenv()
+    smtp_server = os.getenv("SMTP_SERVER")
+    smtp_port = os.getenv("SMTP_PORT")
+    smtp_username = os.getenv("SMTP_USERNAME")
+    smtp_password = os.getenv("SMTP_PASSWORD")
+
+    from_addr = smtp_username
+    to_addr = email
+    subject = "Troca de senha"
+    body = "Esse é um email de troca de senha"
+
+    msg = MIMEMultipart()
+    msg["From"] = from_addr
+    msg["To"] = to_addr
+    msg["Subject"] = subject
+    msg.attach(MIMEText(body, "plain"))
+
+    email_server = smtplib.SMTP(smtp_server, smtp_port)
+    try:
+        email_server.starttls()
+        email_server.login(smtp_username, smtp_password)
+
+        email_server.sendmail(from_addr, to_addr, msg.as_string())
+
+        return Response({"message": "foi"}, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"message": f"Não foi: {str(e)}"}, 
+                       status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    finally:
+        email_server.quit()

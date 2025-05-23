@@ -7,8 +7,8 @@ from .views import (
     delete_user,
     listar_usuario,
     listar_usuarios_todos,
-    atualizar_permissoes_usuario
-    
+    atualizar_permissoes_usuario,
+    mandar_email_troca_senha
 )
 
 urlpatterns = [
@@ -20,4 +20,5 @@ urlpatterns = [
     path("usuario/listagem/<int:pk>", listar_usuario, name="usuario-listagem"),
     path("usuario/listagem-todos", listar_usuarios_todos, name="usuario-listagem-todos"),
     path("usuario/permissoes/<int:pk>", atualizar_permissoes_usuario, name="usuario-permissoes"),
+    path("usuario/trocar-senha/", mandar_email_troca_senha, name="usuario-troca-senha"),
 ]
