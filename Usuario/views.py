@@ -252,7 +252,12 @@ def mandar_email_troca_senha(request):
     """
     Endpoint específico para enviar um email com uma nova senha do usuário
     """
-    email = request.data.get("email", "")
+
+    try:
+        email = request.data.get("email", "")
+        usuario = Usuario.objects.get(email=email)
+    except Usuario.DoesNotExist:
+        return Response({"message": "Usuário não encontrado."}, status=status.HTTP_404_NOT_FOUND)
         
     load_dotenv()
     smtp_server = os.getenv("SMTP_SERVER")
