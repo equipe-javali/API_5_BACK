@@ -288,9 +288,9 @@ def mandar_email_troca_senha(request):
 
         email_server.sendmail(from_addr, to_addr, msg.as_string())
 
-        return Response({"message": "Senha alterado com sucesso"}, status=status.HTTP_200_OK)
+        return Response({"message": "Senha alterada com sucesso"}, status=status.HTTP_200_OK)
     except Exception as e:
-        return Response({"message": f"Erro ao conectar com o servidor de envio de email: {str(e)}"}, 
+        return Response({"message": f"Erro ao enviar o email: {str(e)}"}, 
                        status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     finally:
         email_server.quit()
