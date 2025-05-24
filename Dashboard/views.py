@@ -15,17 +15,40 @@ import re
 def media_mensagens_por_agente(request):
     dados = {"agentes": dict()}
 
-    agentes = Agente.objects.all()
+    # Obter parâmetros de filtro
+    agente_id = request.GET.get("agente_id")
+    inicio = request.GET.get("inicio")
+    fim = request.GET.get("fim")
+
+    # Se um agente_id específico foi passado, filtrar apenas para ele
+    if agente_id:
+        agentes = Agente.objects.filter(id=agente_id)
+    else:
+        agentes = Agente.objects.all()
+
     for agente in agentes:
         dados["agentes"][str(agente.id)] = {"media_de_mensagens_por_usuario": 0}
         mensagens_por_chat = list()
 
-        chats = Chat.objects.filter(Agente_id=agente.id)
-        for chat in chats:
-            mensagens = Mensagem.objects.filter(Chat_id=chat.id).filter(usuario=False)
-            mensagens_por_chat.append(len(mensagens))
+        # Aplicar filtros de data se fornecidos
+        chats_query = Chat.objects.filter(Agente_id=agente.id)
+        
+        # Filtrar mensagens por período, se fornecido
+        for chat in chats_query:
+            mensagens_query = Mensagem.objects.filter(Chat_id=chat.id).filter(usuario=False)
+            
+            if inicio:
+                mensagens_query = mensagens_query.filter(dataCriacao__gte=inicio)
+            if fim:
+                mensagens_query = mensagens_query.filter(dataCriacao__lte=fim)
+                
+            mensagens_por_chat.append(len(mensagens_query))
 
-        dados["agentes"][str(agente.id)]["media_de_mensagens_por_usuario"] = sum(mensagens_por_chat) // len(mensagens_por_chat)
+        # Evitar divisão por zero verificando se há chats
+        if mensagens_por_chat and len(mensagens_por_chat) > 0:
+            dados["agentes"][str(agente.id)]["media_de_mensagens_por_usuario"] = sum(mensagens_por_chat) // len(mensagens_por_chat)
+        else:
+            dados["agentes"][str(agente.id)]["media_de_mensagens_por_usuario"] = 0
     
     return Response(dados)
 
