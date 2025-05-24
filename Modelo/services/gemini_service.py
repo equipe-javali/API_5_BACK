@@ -78,6 +78,16 @@ class GeminiService:
             Por favor, reescreva esta resposta de uma maneira mais conversacional e natural.
             Mantenha toda a informação técnica, mas adicione elementos de linguagem natural.
             Responda em português do Brasil.
+             INSTRUÇÕES IMPORTANTES:
+            1. Responda APENAS com base nas informações do contexto acima. Quando não tiver a resposta, diga que a pergunta deverá ser direcionada ao setor responsável.
+            2. NÃO invente ou adicione informações de seu conhecimento geral. 
+            3. Use um tom natural e conversacional, como se estivesse em um diálogo real.
+            4. Seja conciso e direto, mas mantenha um tom cordial e prestativo.
+            5. Inclua pequenas expressões conversacionais naturais quando adequado.
+            6. Responda em português do Brasil com linguagem acessível.
+            7. Evite jargões técnicos desnecessários, a menos que sejam essenciais para a resposta.
+            8. Se a resposta não estiver clara, peça desculpas e sugira que o usuário entre em contato com o setor responsável.
+            9. Não use expressões como: "com base no contexto fornecido".
             """
             
             # Gerar resposta aprimorada com o Gemini
