@@ -75,22 +75,20 @@ class GeminiService:
                 
                 A resposta técnica é: "{original_response}"
                 
+                Por favor, reescreva esta resposta de uma maneira conversacional e natural.
                 
-                Por favor, reescreva esta resposta de uma maneira mais conversacional e natural.
-                NUNCA use frases como "no contexto que eu tenho", "com base nas informações disponíveis" ou similares.
-                O contexto foi fornecido pelo administrador do sistema, o usuario não tem acesso a ele e não precisa saber disso.
-                Quando a pergunta estiver fora do contexto treinado, simplesmente diga que não tem essa informação e que a pergunta deverá ser feita ao setor responsável.
-                Mantenha toda a informação técnica, mas adicione elementos de linguagem natural.
-                Quem fizer a pergunta deve sentir que está conversando com um humano, não com uma máquina.
-                Responda de forma clara, mantendo a essência da resposta original.
-                Responda com naturalidade como um assistente humano faria, sem mencionar limitações técnicas.
-                Responda em português do Brasil com linguagem acessível.
-                Evite jargões técnicos desnecessários, a menos que sejam essenciais para a resposta.
-                
-                
-                """
-
-            # Gerar resposta aprimorada com o Gemini
+                DIRETRIZES:
+                1. Responda de forma direta e clara, como em uma conversa normal.
+                2. Seja natural, amigável e prestativo.
+                3. Se não souber a resposta, diga apenas "Não tenho essa informação, sugiro consultar o setor responsável" sem explicar o motivo.
+                4. Nunca mencione contextos, limitações ou fontes de informação.
+                5. Não use frases como "com base no que sei", "conforme as informações que tenho" ou similar.
+                6. Use português brasileiro e evite termos técnicos complexos quando possível.
+                7. Inclua expressões conversacionais naturais (ex: "bem", "olha", "então").
+                8. Mantenha todas as informações técnicas da resposta original, apenas torne-as mais acessíveis.
+                9. Se for uma informação incompleta, não se desculpe nem mencione limitações.
+                10. Seja objetivo e direto ao ponto, mantendo a essência da informação original.
+                """           
             completion = self.model.generate_content(prompt)
             
             # Verificar e retornar a resposta

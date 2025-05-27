@@ -16,6 +16,7 @@ pyasn1==0.6.0
 pyasn1-modules==0.4.0
 cryptography==42.0.8
 rake-nltk
+python-dotenv==1.0.1
 # Se drf-yasg reclamar de dependências, adicione:
 # PyYAML
 # inflection
