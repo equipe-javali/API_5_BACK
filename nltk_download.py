@@ -19,6 +19,7 @@ print("Baixando pacotes NLTK...")
 nltk.download('rslp', download_dir=nltk_data_dir)
 nltk.download('punkt', download_dir=nltk_data_dir)
 nltk.download('stopwords', download_dir=nltk_data_dir)
+nltk
 try:
     nltk.download('punkt_tab', download_dir=nltk_data_dir)
 except:
