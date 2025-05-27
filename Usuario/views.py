@@ -9,8 +9,13 @@ from drf_yasg.utils import swagger_auto_schema
 from .models import Usuario
 from .serializers import UsuarioSerializer
 from django.contrib.auth.models import User
+from django.utils.crypto import get_random_string
 from Agente.models import Agente
-
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from dotenv import load_dotenv
+import os
 
 class AdminCreateView(generics.CreateAPIView):
     queryset = Usuario.objects.all()
@@ -241,3 +246,51 @@ def atualizar_permissoes_usuario(request, pk):
     except Exception as e:
         return Response({"message": f"Erro ao atualizar permissões: {str(e)}"}, 
                        status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(["PUT"])
+@permission_classes([AllowAny])
+def mandar_email_troca_senha(request):
+    """
+    Endpoint específico para enviar um email com uma nova senha do usuário
+    """
+
+    try:
+        email = request.data.get("email", "")
+        usuario = Usuario.objects.get(email=email)
+    except Usuario.DoesNotExist:
+        return Response({"message": "Usuário não encontrado."}, status=status.HTTP_404_NOT_FOUND)
+    
+    senha = get_random_string(length=8)
+    usuario.set_password(senha)
+    usuario.save()
+
+    load_dotenv()
+    smtp_server = os.getenv("SMTP_SERVER")
+    smtp_port = os.getenv("SMTP_PORT")
+    smtp_username = os.getenv("SMTP_USERNAME")
+    smtp_password = os.getenv("SMTP_PASSWORD")
+
+    from_addr = smtp_username
+    to_addr = email
+    subject = "Troca de senha"
+    body = f"Troca de senha solicitada.\nSua nova senha é: {senha}\nCaso essa solicitção não foi feita por você, contate um adiministrador."
+
+    msg = MIMEMultipart()
+    msg["From"] = from_addr
+    msg["To"] = to_addr
+    msg["Subject"] = subject
+    msg.attach(MIMEText(body, "plain"))
+
+    email_server = smtplib.SMTP(smtp_server, smtp_port)
+    try:
+        email_server.starttls()
+        email_server.login(smtp_username, smtp_password)
+
+        email_server.sendmail(from_addr, to_addr, msg.as_string())
+
+        return Response({"message": "Senha alterada com sucesso"}, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"message": f"Erro ao enviar o email: {str(e)}"}, 
+                       status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    finally:
+        email_server.quit()
