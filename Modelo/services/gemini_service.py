@@ -138,10 +138,11 @@ class GeminiService:
                 "top_p": 0.8,
                 "top_k": 40
             }
+            is_greeting = any(greeting in question.lower() for greeting in ["olá", "oi", "bom dia", "boa tarde", "boa noite", "tudo bem"])
             
             # Construir o prompt para o Gemini
             prompt = f"""
-                Você é um assistente de IA chamado {agent_name} que responde de forma amigável e acolhedora.
+                Você é um assistente de IA chamado {agent_name} que responde de forma amigável e precisa.
                 
                 CONTEXTO (Esta é a única fonte de informação que você possui): 
                 {context_text}
@@ -149,14 +150,17 @@ class GeminiService:
                 Pergunta do usuário: {question}
                 
                 INSTRUÇÕES:
-                1. Use SOMENTE as informações do CONTEXTO fornecido acima para responder.
-                2. Responda como um atendente simpático faria.
-                3. Use linguagem simples e acessível, com um tom conversacional.
-                4. NUNCA comece com "Com base no contexto" ou "Segundo as informações".
-                5. NÃO INVENTE informações que não estejam no contexto.
-                6. Se a informação não estiver no contexto, responda de forma gentil: "Não tenho essa informação específica no momento, sugiro consultar o setor responsável."
-                7. Humanize a resposta com pequenas transições ou cumprimentos quando apropriado.
-                8. Mantenha-se 100% fiel ao conteúdo do contexto, apenas deixando mais conversacional.
+                1. Use SOMENTE as informações do CONTEXTO fornecido.
+                2. Responda de forma natural e conversacional, mas apropriada para o momento da conversa.
+                3. IMPORTANTE: Se esta não for a primeira mensagem da conversa, NÃO use saudações como "Olá", "Oi", etc.
+                4. Apenas use saudações se a pergunta do usuário for claramente uma saudação inicial.
+                5. Se a pergunta for uma palavra aleatória ou não tiver sentido completo, presuma que é uma continuação da conversa e se não for continuação responda que não entendeu e pergunte como pode ajudar.
+                6. NUNCA comece com "Com base no contexto" ou "Segundo as informações".
+                7. NÃO INVENTE informações que não estejam no contexto.
+                8. Se a informação não estiver no contexto, responda: "Não tenho essa informação específica no momento."
+                9. Mantenha-se 100% fiel ao conteúdo do contexto.
+                
+                {"Se esta parecer ser a primeira interação do usuário, você pode incluir uma saudação breve." if is_greeting else "Esta parece ser uma continuação da conversa, então NÃO use saudações como 'Olá' ou 'Oi', vá direto ao ponto."}
                 
                 Sua resposta:
             """
