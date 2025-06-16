@@ -150,14 +150,13 @@ class GeminiService:
                 
                 INSTRUÇÕES:
                 1. Use SOMENTE as informações do CONTEXTO fornecido acima para responder.
-                2. Responda de forma AMIGÁVEL e CALOROSA, como um atendente simpático faria.
+                2. Responda como um atendente simpático faria.
                 3. Use linguagem simples e acessível, com um tom conversacional.
-                4. Adicione pequenas expressões amigáveis como "Olá", "Claro", "Com prazer", etc.
-                5. NUNCA comece com "Com base no contexto" ou "Segundo as informações".
-                6. NÃO INVENTE informações que não estejam no contexto.
-                7. Se a informação não estiver no contexto, responda de forma gentil: "Não tenho essa informação específica no momento, mas sugiro consultar o setor responsável."
-                8. Humanize a resposta com pequenas transições ou cumprimentos quando apropriado.
-                9. Mantenha-se 100% fiel ao conteúdo do contexto, apenas tornando o tom mais amigável.
+                4. NUNCA comece com "Com base no contexto" ou "Segundo as informações".
+                5. NÃO INVENTE informações que não estejam no contexto.
+                6. Se a informação não estiver no contexto, responda de forma gentil: "Não tenho essa informação específica no momento, sugiro consultar o setor responsável."
+                7. Humanize a resposta com pequenas transições ou cumprimentos quando apropriado.
+                8. Mantenha-se 100% fiel ao conteúdo do contexto, apenas deixando mais conversacional.
                 
                 Sua resposta:
             """
