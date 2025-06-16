@@ -75,20 +75,18 @@ class GeminiService:
                 
                 A resposta técnica é: "{original_response}"
                 
-                Por favor, reescreva esta resposta de uma maneira conversacional e natural.
+                Por favor, reescreva esta resposta de uma maneira conversacional e natural, porém não adicione informações que não estejam na resposta técnica.
                 
-                DIRETRIZES:
-                1. Responda de forma direta e clara, como em uma conversa normal.
+                INSTRUÇÕES IMPORTANTES:
+                1. Responda de forma direta e clara, mantendo a essência da resposta original.
                 2. Seja natural, amigável e prestativo.
-                3. Se não souber a resposta, diga apenas "Não tenho essa informação, sugiro consultar o setor responsável" sem explicar o motivo.
-                4. Nunca mencione contextos, limitações ou fontes de informação.
-                5. Não use frases como "com base no que sei", "conforme as informações que tenho" ou similar.
-                6. Use português brasileiro e evite termos técnicos complexos quando possível.
-                7. Inclua expressões conversacionais naturais (ex: "bem", "olha", "então").
-                8. Mantenha todas as informações técnicas da resposta original, apenas torne-as mais acessíveis.
-                9. Se for uma informação incompleta, não se desculpe nem mencione limitações.
-                10. Seja objetivo e direto ao ponto, mantendo a essência da informação original.
-                """           
+                3. NUNCA use frases como "Com base nas informações que tenho", "De acordo com o contexto" ou similares.
+                4. Não mencione limites do seu conhecimento ou fontes de informação.
+                5. Se não souber a resposta, diga apenas "Não tenho essa informação, sugiro consultar o setor responsável".
+                6. Responda como se já soubesse a informação, sem referir-se a contextos ou dados fornecidos.
+                7. Evite jargões técnicos desnecessários para um usuário comum.
+                8. Mantenha um tom conversacional natural como se estivesse em um diálogo em tempo real.
+            """ 
             completion = self.model.generate_content(prompt)
             
             # Verificar e retornar a resposta
@@ -136,18 +134,24 @@ class GeminiService:
             
             # Construir o prompt para o Gemini
             prompt = f"""
-            Você é um assistente de IA chamado {agent_name}.
-            
-            CONTEXTO:
-            {context_text}
-            
-            Com base apenas no contexto acima, responda à seguinte pergunta:
-            
-            Pergunta: {question}
-            
-            Se a resposta não estiver no contexto, responda educadamente que não possui essa informação.
-            Responda em português do Brasil de forma natural e conversacional.
-            """
+                Você é um assistente de IA chamado {agent_name}.
+                
+                CONTEXTO (Esta é a única informação que você deve usar): {context_text}
+                
+                Responda à seguinte pergunta:
+                
+                Pergunta: {question}
+                
+                INSTRUÇÕES CRÍTICAS:
+                1. NUNCA comece sua resposta com frases como "Com base no que eu sei", "De acordo com o contexto", "Com base nas informações disponíveis" ou similares.
+                2. Comece sua resposta diretamente abordando a pergunta sem qualquer tipo de prefácio.
+                3. NÃO INVENTE informações que não estejam explicitamente no contexto.
+                4. Use um tom conversacional e amigável, mas sem adicionar detalhes não presentes no contexto.
+                5. Se a resposta não estiver no contexto, responda apenas "Não tenho essa informação, sugiro consultar o setor responsável."
+                6. Responda em português do Brasil de forma natural e conversacional.
+                7. Não mencione que você está usando algum contexto ou informação fornecida.
+                8. Responda como se a informação fosse seu conhecimento próprio.
+                """
             
             print(f"Enviando prompt para o modelo {self.model_name}")
             
@@ -190,7 +194,7 @@ class GeminiService:
                     if matches > 0 and len(keywords) > 0 and matches >= len(keywords) / 2:
                         return {
                             'success': True,
-                            'answer': f"Com base no que sei: {ctx.resposta}",
+                            'answer': ctx.resposta,
                             'confidence': 0.7,
                             'in_scope': True,
                             'fallback': True
