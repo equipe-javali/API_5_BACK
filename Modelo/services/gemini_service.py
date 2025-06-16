@@ -132,31 +132,46 @@ class GeminiService:
             
             context_text = "\n\n".join(context_data)
             
+            # Configuração para mais criatividade na formulação, sem alterar conteúdo
+            generation_config = {
+                "temperature": 0.7,  # Aumentado para mais naturalidade
+                "top_p": 0.8,
+                "top_k": 40
+            }
+            
             # Construir o prompt para o Gemini
             prompt = f"""
-                Você é um assistente de IA chamado {agent_name}.
+                Você é um assistente de IA chamado {agent_name} que responde de forma amigável e acolhedora.
                 
-                CONTEXTO (Esta é a única informação que você deve usar): {context_text}
+                CONTEXTO (Esta é a única fonte de informação que você possui): 
+                {context_text}
                 
-                Responda à seguinte pergunta:
+                Pergunta do usuário: {question}
                 
-                Pergunta: {question}
+                INSTRUÇÕES:
+                1. Use SOMENTE as informações do CONTEXTO fornecido acima para responder.
+                2. Responda de forma AMIGÁVEL e CALOROSA, como um atendente simpático faria.
+                3. Use linguagem simples e acessível, com um tom conversacional.
+                4. Adicione pequenas expressões amigáveis como "Olá", "Claro", "Com prazer", etc.
+                5. NUNCA comece com "Com base no contexto" ou "Segundo as informações".
+                6. NÃO INVENTE informações que não estejam no contexto.
+                7. Se a informação não estiver no contexto, responda de forma gentil: "Não tenho essa informação específica no momento, mas sugiro consultar o setor responsável."
+                8. Humanize a resposta com pequenas transições ou cumprimentos quando apropriado.
+                9. Mantenha-se 100% fiel ao conteúdo do contexto, apenas tornando o tom mais amigável.
                 
-                INSTRUÇÕES CRÍTICAS:
-                1. NUNCA comece sua resposta com frases como "Com base no que eu sei", "De acordo com o contexto", "Com base nas informações disponíveis" ou similares.
-                2. Comece sua resposta diretamente abordando a pergunta sem qualquer tipo de prefácio.
-                3. NÃO INVENTE informações que não estejam explicitamente no contexto.
-                4. Use um tom conversacional e amigável, mas sem adicionar detalhes não presentes no contexto.
-                5. Se a resposta não estiver no contexto, responda apenas "Não tenho essa informação, sugiro consultar o setor responsável."
-                6. Responda em português do Brasil de forma natural e conversacional.
-                7. Não mencione que você está usando algum contexto ou informação fornecida.
-                8. Responda como se a informação fosse seu conhecimento próprio.
-                """
+                Sua resposta:
+            """
             
             print(f"Enviando prompt para o modelo {self.model_name}")
             
+            # Criar modelo temporário com a configuração específica
+            temp_model = genai.GenerativeModel(
+                self.model_name,
+                generation_config=generation_config
+            )
+            
             # Gerar resposta com o Gemini
-            completion = self.model.generate_content(prompt)
+            completion = temp_model.generate_content(prompt)
             
             if hasattr(completion, 'text'):
                 answer = completion.text.strip()
